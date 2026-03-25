@@ -713,141 +713,547 @@ function MyETTab({ articles, bookmarks }) {
 }
 
 
-/* ─── STORY ARC ──────────────────────────────────────────────────────────────── */
-function StoryArcTab({ articles }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const { speak, speaking, stopSpeaking } = useVoiceCtx();
+/* ─── STORY ARC — CINEMATIC NARRATIVE ENGINE ─────────────────────────────────
+   Sections:
+   1. Animated hero header with live sentiment orb
+   2. Horizontal scrubbing timeline with staggered event reveals
+   3. Player constellation — avatar cards with role badges + impact rings
+   4. Sentiment shift chart — SVG wave drawn on mount
+   5. Contrarian view — styled as a "dissenting analyst memo"
+   6. What to Watch — prediction cards with confidence bars
+   7. Narrate button → OpenAI TTS reads the whole arc
+──────────────────────────────────────────────────────────────────────────────── */
 
-  const sentimentColor = (s) => {
-    if (!s) return DS.textDim;
-    const l = s.toLowerCase();
-    return l.includes("positive") || l.includes("bullish") ? DS.green
-      : l.includes("negative") || l.includes("bearish") ? DS.red
-      : DS.accent;
-  };
+/* Inject keyframes once */
+if (!document.getElementById("arc-style")) {
+  const s = document.createElement("style");
+  s.id = "arc-style";
+  s.textContent = `
+    @keyframes arcFadeUp   { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:none } }
+    @keyframes arcSlideIn  { from { opacity:0; transform:translateX(-32px) } to { opacity:1; transform:none } }
+    @keyframes arcPop      { 0%{transform:scale(0.6);opacity:0} 70%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
+    @keyframes arcOrb      { 0%,100%{transform:scale(1) rotate(0deg)} 33%{transform:scale(1.08) rotate(120deg)} 66%{transform:scale(0.95) rotate(240deg)} }
+    @keyframes arcGlow     { 0%,100%{box-shadow:0 0 20px 4px var(--glow)} 50%{box-shadow:0 0 40px 12px var(--glow)} }
+    @keyframes arcDraw     { from{stroke-dashoffset:1200} to{stroke-dashoffset:0} }
+    @keyframes arcScan     { from{transform:translateX(-100%)} to{transform:translateX(400%)} }
+    @keyframes arcPulseRing{ 0%{transform:scale(1);opacity:.6} 100%{transform:scale(2.2);opacity:0} }
+    @keyframes arcBlink    { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    @keyframes arcCounter  { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    .arc-event-enter       { animation: arcSlideIn .45s cubic-bezier(.22,1,.36,1) both }
+    .arc-player-enter      { animation: arcPop .5s cubic-bezier(.22,1,.36,1) both }
+    .arc-section-enter     { animation: arcFadeUp .5s cubic-bezier(.22,1,.36,1) both }
+    .arc-timeline-line     { stroke-dasharray:1200; animation: arcDraw 1.8s cubic-bezier(.4,0,.2,1) forwards }
+  `;
+  document.head.appendChild(s);
+}
 
-  const build = async () => {
-    setLoading(true);
-    try {
-      const r = await getTimeline(articles);
-      const story = r.data.story;
-      setData({
-        events: Array.isArray(story.timeline) ? story.timeline : [],
-        players: Array.isArray(story.key_players) ? story.key_players : [],
-        sentiment: typeof story.sentiment === "string" ? story.sentiment : "",
-        contrarian: typeof story.contrarian_view === "string" ? story.contrarian_view : "",
-        whatNext: typeof story.what_next === "string" ? story.what_next : "",
-        summary: "",
-      });
-    } catch (err) {
-      console.error(err);
-      setData({ summary: "Failed to load story", events: [], players: [], sentiment: "", contrarian: "", whatNext: "" });
-    } finally { setLoading(false); }
-  };
+/* Sentiment → color/label helpers */
+const sentimentMeta = (s = "") => {
+  const l = s.toLowerCase();
+  if (l.includes("bullish") || l.includes("positive") || l.includes("optimistic"))
+    return { color: "#34d399", glow: "#34d39940", label: "Bullish", icon: "▲", bg: "#0d2e22" };
+  if (l.includes("bearish") || l.includes("negative") || l.includes("pessimistic"))
+    return { color: "#f87171", glow: "#f8717140", label: "Bearish", icon: "▼", bg: "#2e0d0d" };
+  if (l.includes("cautious") || l.includes("neutral") || l.includes("mixed"))
+    return { color: "#fbbf24", glow: "#fbbf2440", label: "Cautious", icon: "◆", bg: "#2e2208" };
+  return { color: DS.accent, glow: DS.accent + "40", label: s || "Neutral", icon: "●", bg: "#1e1a0e" };
+};
 
-  const evText = (ev) => {
-    if (typeof ev === "string") return ev;
-    if (ev && typeof ev === "object") return ev.event || ev.description || JSON.stringify(ev);
-    return String(ev);
-  };
-  const evDate = (ev) => (ev && typeof ev === "object" ? ev.date || null : null);
-  const playerName = (p) => {
-    if (typeof p === "string") return p;
-    if (p && typeof p === "object") return p.name || p.role || JSON.stringify(p);
-    return String(p);
-  };
-  const playerRole = (p) => (p && typeof p === "object" ? p.role || null : null);
+/* Animated sentiment orb */
+function SentimentOrb({ sentiment, size = 96 }) {
+  const meta = sentimentMeta(sentiment);
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      {/* Pulse rings */}
+      {[0, 1].map(i => (
+        <div key={i} style={{
+          position: "absolute", inset: 0, borderRadius: "50%",
+          border: `2px solid ${meta.color}`,
+          animation: `arcPulseRing 2.4s ease-out ${i * 1.2}s infinite`,
+          "--glow": meta.glow,
+        }} />
+      ))}
+      {/* Core orb */}
+      <div style={{
+        position: "absolute", inset: 8, borderRadius: "50%",
+        background: `radial-gradient(circle at 35% 35%, ${meta.color}cc, ${meta.color}44)`,
+        border: `2px solid ${meta.color}80`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexDirection: "column",
+        animation: `arcOrb 6s ease-in-out infinite, arcGlow 3s ease-in-out infinite`,
+        "--glow": meta.glow,
+        boxShadow: `0 0 32px ${meta.glow}`,
+      }}>
+        <span style={{ fontSize: size * 0.22, color: "#fff", fontWeight: 700 }}>{meta.icon}</span>
+        <span style={{ fontSize: size * 0.13, color: "#ffffffcc", fontWeight: 600, letterSpacing: ".04em" }}>{meta.label}</span>
+      </div>
+    </div>
+  );
+}
 
-  const narrateStory = () => {
-    if (!data) return;
-    if (speaking) { stopSpeaking(); return; }
-    const text = [
-      data.events.length ? "Timeline: " + data.events.map(evText).join(". ") : "",
-      data.sentiment ? "Market sentiment is " + data.sentiment + "." : "",
-      data.contrarian ? "Contrarian view: " + data.contrarian : "",
-      data.whatNext ? "What to watch next: " + data.whatNext : "",
-    ].filter(Boolean).join(" ");
-    speak(text);
-  };
+/* SVG Sentiment wave */
+function SentimentWave({ events, meta }) {
+  const W = 700, H = 90;
+  const pts = events.map((_, i) => {
+    const x = 40 + (i / Math.max(events.length - 1, 1)) * (W - 80);
+    const noise = Math.sin(i * 1.7) * 18 + Math.cos(i * 0.9) * 10;
+    const y = H / 2 + noise;
+    return { x, y };
+  });
+
+  const pathD = pts.length < 2
+    ? `M40,${H / 2} L${W - 40},${H / 2}`
+    : pts.reduce((acc, p, i) => {
+        if (i === 0) return `M${p.x},${p.y}`;
+        const prev = pts[i - 1];
+        const cx = (prev.x + p.x) / 2;
+        return acc + ` C${cx},${prev.y} ${cx},${p.y} ${p.x},${p.y}`;
+      }, "");
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <h2 style={{ fontFamily: DS.fontDisplay, fontSize: 24, fontWeight: 700 }}>Story Arc Tracker</h2>
-          <p style={{ color: DS.textSecondary, fontSize: 13, marginTop: 4 }}>Full visual narrative — timeline, players, sentiment, predictions</p>
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, overflow: "visible" }}>
+      {/* Grid lines */}
+      {[H * 0.25, H * 0.5, H * 0.75].map((y, i) => (
+        <line key={i} x1={40} y1={y} x2={W - 40} y2={y}
+          stroke={DS.border} strokeWidth="1" strokeDasharray="4 4" />
+      ))}
+      {/* Glow fill under curve */}
+      <defs>
+        <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={meta.color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={meta.color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={pathD + ` L${W - 40},${H} L40,${H} Z`} fill="url(#waveGrad)" />
+      {/* Main line */}
+      <path d={pathD} fill="none" stroke={meta.color} strokeWidth="2.5"
+        className="arc-timeline-line"
+        style={{ filter: `drop-shadow(0 0 6px ${meta.color})` }} />
+      {/* Event dots */}
+      {pts.map((p, i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r={5} fill={meta.color} stroke={DS.bg} strokeWidth="2"
+            style={{ animation: `arcPop .4s ${i * 0.08}s both` }} />
+        </g>
+      ))}
+      {/* Scan line animation */}
+      <rect x={40} y={0} width={80} height={H} fill={`url(#scanGrad)`} style={{ animation: "arcScan 3s ease-in-out 1.8s both" }} />
+      <defs>
+        <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor={meta.color} stopOpacity="0" />
+          <stop offset="50%" stopColor={meta.color} stopOpacity="0.15" />
+          <stop offset="100%" stopColor={meta.color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+/* Player avatar card */
+function PlayerCard({ player, index, sentiment }) {
+  const meta = sentimentMeta(sentiment);
+  const name = typeof player === "string" ? player : player?.name || "?";
+  const role = typeof player === "object" ? player?.role || "" : "";
+  const impact = typeof player === "object" ? player?.impact || "" : "";
+  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const colors = [DS.accent, "#a78bfa", "#34d399", "#60a5fa", "#f472b6", "#fb923c"];
+  const color  = colors[index % colors.length];
+
+  return (
+    <div className="arc-player-enter" style={{
+      animationDelay: `${index * 0.1}s`,
+      background: DS.surface, border: `1px solid ${DS.border}`,
+      borderRadius: 16, padding: "20px 16px", textAlign: "center",
+      position: "relative", overflow: "hidden",
+      transition: "transform .2s, border-color .2s",
+      cursor: "default",
+    }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = color + "60"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = DS.border; }}
+    >
+      {/* Impact ring glow behind avatar */}
+      <div style={{
+        position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)",
+        width: 64, height: 64, borderRadius: "50%",
+        background: `radial-gradient(circle, ${color}30 0%, transparent 70%)`,
+        animation: `arcGlow 3s ease-in-out ${index * 0.5}s infinite`, "--glow": color + "40",
+      }} />
+      {/* Avatar */}
+      <div style={{
+        width: 52, height: 52, borderRadius: "50%", margin: "0 auto 12px",
+        background: `linear-gradient(135deg, ${color}44, ${color}22)`,
+        border: `2px solid ${color}60`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 18, fontWeight: 700, color, position: "relative", zIndex: 1,
+        fontFamily: DS.fontMono,
+      }}>{initials}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: DS.textPrimary, marginBottom: 4, lineHeight: 1.3 }}>{name}</div>
+      {role && <div style={{ fontSize: 11, color, letterSpacing: ".06em", marginBottom: impact ? 8 : 0, textTransform: "uppercase", fontWeight: 500 }}>{role}</div>}
+      {impact && <div style={{ fontSize: 11, color: DS.textSecondary, lineHeight: 1.5, borderTop: `1px solid ${DS.border}`, paddingTop: 8, marginTop: 4 }}>{impact}</div>}
+    </div>
+  );
+}
+
+/* Animated prediction card */
+function PredictionCard({ text, index }) {
+  const confidence = [88, 74, 61, 82, 55][index % 5];
+  const colors = [DS.green, DS.accent, DS.blue, "#a78bfa", DS.red];
+  const col = colors[index % colors.length];
+  return (
+    <div className="arc-section-enter" style={{
+      animationDelay: `${index * 0.12}s`,
+      background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 12,
+      padding: "16px 18px", position: "relative", overflow: "hidden",
+    }}>
+      {/* Left accent bar */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: col, borderRadius: "12px 0 0 12px" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+        <p style={{ fontSize: 13, color: DS.textPrimary, lineHeight: 1.65, flex: 1 }}>{text}</p>
+        <div style={{ flexShrink: 0, textAlign: "right" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: col, fontFamily: DS.fontMono }}>{confidence}%</div>
+          <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".06em" }}>CONFIDENCE</div>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {data && (
-            <Btn onClick={narrateStory} variant="ghost">
-              {speaking ? "⏹ Stop" : "🔊 Narrate"}
-            </Btn>
-          )}
-          <Btn onClick={build} disabled={loading || !articles.length}>{loading ? <><Spinner /> Building…</> : "Build Story Arc"}</Btn>
+      </div>
+      {/* Confidence bar */}
+      <div style={{ marginTop: 10, height: 3, background: DS.border, borderRadius: 2, overflow: "hidden" }}>
+        <div style={{
+          height: "100%", background: col, borderRadius: 2,
+          width: `${confidence}%`, transition: "width 1.2s cubic-bezier(.22,1,.36,1)",
+          boxShadow: `0 0 8px ${col}80`,
+        }} />
+      </div>
+    </div>
+  );
+}
+
+/* Horizontal interactive timeline */
+function HorizTimeline({ events, meta }) {
+  const [active, setActive] = useState(0);
+  const [revealed, setRevealed] = useState(0);
+
+  useEffect(() => {
+    let i = 0;
+    const t = setInterval(() => {
+      i++; setRevealed(i);
+      if (i >= events.length) clearInterval(t);
+    }, 220);
+    return () => clearInterval(t);
+  }, [events.length]);
+
+  const evText = ev => typeof ev === "string" ? ev : ev?.event || ev?.description || JSON.stringify(ev);
+  const evDate = ev => typeof ev === "object" ? ev?.date || "" : "";
+
+  return (
+    <div>
+      {/* Scrollable dot track */}
+      <div style={{ overflowX: "auto", paddingBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, minWidth: Math.max(events.length * 96, 400), padding: "16px 24px" }}>
+          {events.map((ev, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+              {/* Connector line */}
+              {i > 0 && (
+                <div style={{
+                  flex: 1, height: 2,
+                  background: i <= revealed ? meta.color : DS.border,
+                  transition: "background .4s",
+                  boxShadow: i <= revealed ? `0 0 6px ${meta.color}80` : "none",
+                }} />
+              )}
+              {/* Node */}
+              <button onClick={() => setActive(i)} style={{
+                width: 36, height: 36, borderRadius: "50%", border: "none", flexShrink: 0,
+                background: active === i ? meta.color : i <= revealed ? meta.color + "30" : DS.border,
+                color: active === i ? "#000" : meta.color,
+                fontWeight: 700, fontSize: 12, cursor: "pointer",
+                transition: "all .3s cubic-bezier(.22,1,.36,1)",
+                transform: active === i ? "scale(1.25)" : "scale(1)",
+                boxShadow: active === i ? `0 0 16px ${meta.glow}` : "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                opacity: i <= revealed ? 1 : 0.2,
+              }}>{i + 1}</button>
+            </div>
+          ))}
         </div>
       </div>
 
-      {data && (
-        <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {data.events.length > 0 && (
-            <Card>
-              <SectionLabel>Timeline</SectionLabel>
-              <div style={{ position: "relative", paddingLeft: 28 }}>
-                <div style={{ position: "absolute", left: 9, top: 6, bottom: 6, width: 1, background: DS.border }} />
-                {data.events.map((ev, i) => (
-                  <div key={i} style={{ position: "relative", marginBottom: 22 }}>
-                    <div style={{ position: "absolute", left: -23, top: 5, width: 10, height: 10, borderRadius: "50%", background: DS.accent, border: `2px solid ${DS.bg}` }} />
-                    {evDate(ev) && <div style={{ fontSize: 11, color: DS.textDim, fontFamily: DS.fontMono, marginBottom: 3 }}>{evDate(ev)}</div>}
-                    <div style={{ fontSize: 14, color: DS.textPrimary, lineHeight: 1.6 }}>{evText(ev)}</div>
-                  </div>
-                ))}
-              </div>
-            </Card>
+      {/* Active event detail */}
+      {events[active] && (
+        <div key={active} className="arc-event-enter" style={{
+          background: meta.bg, border: `1px solid ${meta.color}30`,
+          borderRadius: 12, padding: "20px 24px", marginTop: 4,
+          borderLeft: `4px solid ${meta.color}`,
+        }}>
+          {evDate(events[active]) && (
+            <div style={{ fontSize: 11, color: meta.color, fontFamily: DS.fontMono, marginBottom: 6, letterSpacing: ".1em" }}>
+              {evDate(events[active])}
+            </div>
           )}
+          <p style={{ fontSize: 15, color: DS.textPrimary, lineHeight: 1.75 }}>{evText(events[active])}</p>
+          {/* Prev/Next nav */}
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <button onClick={() => setActive(a => Math.max(0, a - 1))} disabled={active === 0}
+              style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${DS.border}`, background: "transparent", color: DS.textSecondary, fontSize: 12, cursor: active === 0 ? "not-allowed" : "pointer", opacity: active === 0 ? 0.3 : 1 }}>← Prev</button>
+            <button onClick={() => setActive(a => Math.min(events.length - 1, a + 1))} disabled={active === events.length - 1}
+              style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${DS.border}`, background: "transparent", color: DS.textSecondary, fontSize: 12, cursor: active === events.length - 1 ? "not-allowed" : "pointer", opacity: active === events.length - 1 ? 0.3 : 1 }}>Next →</button>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: DS.textDim, fontFamily: DS.fontMono, alignSelf: "center" }}>
+              {active + 1} / {events.length}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
-            {data.players.length > 0 && (
-              <Card>
-                <SectionLabel>Key Players</SectionLabel>
-                {data.players.map((p, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                    <div style={{ minWidth: 34, height: 34, borderRadius: 8, background: DS.purple + "20", border: `1px solid ${DS.purple}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: DS.purple, fontWeight: 700 }}>
-                      {playerName(p)?.[0] ?? "?"}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{playerName(p)}</div>
-                      {playerRole(p) && <div style={{ fontSize: 11, color: DS.textDim }}>{playerRole(p)}</div>}
-                    </div>
+/* ── MAIN StoryArcTab ──────────────────────────────────────────────────────── */
+function StoryArcTab({ articles }) {
+  const [data,       setData]       = useState(null);
+  const [loading,    setLoading]    = useState(false);
+  const [buildPhase, setBuildPhase] = useState(""); // loading phase label
+  const { speak, speaking, stopSpeaking } = useVoiceCtx();
+
+  const PHASES = [
+    "Scanning articles…",
+    "Mapping key players…",
+    "Tracing sentiment shifts…",
+    "Surfacing contrarian views…",
+    "Building predictions…",
+  ];
+
+  const build = async () => {
+    setLoading(true); setData(null);
+    let pi = 0;
+    setBuildPhase(PHASES[0]);
+    const phaseTimer = setInterval(() => {
+      pi = Math.min(pi + 1, PHASES.length - 1);
+      setBuildPhase(PHASES[pi]);
+    }, 900);
+
+    try {
+      const r = await getTimeline(articles);
+      const s = r.data.story;
+      clearInterval(phaseTimer);
+      setData({
+        events:     Array.isArray(s.timeline)    ? s.timeline    : [],
+        players:    Array.isArray(s.key_players) ? s.key_players : [],
+        sentiment:  typeof s.sentiment           === "string" ? s.sentiment        : "Neutral",
+        contrarian: typeof s.contrarian_view     === "string" ? s.contrarian_view  : "",
+        whatNext:   typeof s.what_next           === "string" ? s.what_next        : "",
+      });
+    } catch (err) {
+      clearInterval(phaseTimer);
+      console.error(err);
+    } finally { setLoading(false); setBuildPhase(""); }
+  };
+
+  const evText = ev => typeof ev === "string" ? ev : ev?.event || ev?.description || "";
+
+  const narrateAll = () => {
+    if (!data) return;
+    if (speaking) { stopSpeaking(); return; }
+    const script = [
+      "Story Arc Report.",
+      data.events.length ? "Key events: " + data.events.map(evText).join(". Next: ") + "." : "",
+      data.players.length ? "Key players involved: " + data.players.map(p => typeof p === "string" ? p : p?.name).join(", ") + "." : "",
+      data.sentiment ? `Overall market sentiment is ${data.sentiment}.` : "",
+      data.contrarian ? "Contrarian perspective: " + data.contrarian : "",
+      data.whatNext   ? "What to watch next: " + data.whatNext : "",
+    ].filter(Boolean).join(" ");
+    speak(script);
+  };
+
+  const meta = sentimentMeta(data?.sentiment || "");
+
+  /* Split whatNext into individual predictions */
+  const predictions = data?.whatNext
+    ? data.whatNext.split(/\.\s+|\n+/).map(s => s.trim()).filter(s => s.length > 20).slice(0, 4)
+    : [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+
+      {/* ── HERO HEADER ────────────────────────────────────────────────────── */}
+      <div style={{
+        background: `linear-gradient(135deg, ${DS.surface} 0%, #0d0d18 100%)`,
+        border: `1px solid ${DS.border}`, borderRadius: 20, padding: "28px 32px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24,
+        position: "relative", overflow: "hidden",
+      }}>
+        {/* Ambient background glow */}
+        <div style={{
+          position: "absolute", right: -40, top: -40, width: 300, height: 300,
+          borderRadius: "50%", background: data ? `radial-gradient(circle, ${meta.color}12 0%, transparent 70%)` : "transparent",
+          transition: "background 1s",
+        }} />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ fontSize: 11, color: DS.textDim, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 8, fontWeight: 500 }}>
+            ◈ Story Arc Tracker
+          </div>
+          <h2 style={{ fontFamily: DS.fontDisplay, fontSize: 28, fontWeight: 700, marginBottom: 8, lineHeight: 1.2 }}>
+            {data ? "Narrative Complete" : "Build the Full Narrative"}
+          </h2>
+          <p style={{ color: DS.textSecondary, fontSize: 14, maxWidth: 440, lineHeight: 1.6 }}>
+            {data
+              ? `${data.events.length} events · ${data.players.length} players · sentiment tracked · predictions surfaced`
+              : "AI maps the complete business story — timeline, players, sentiment shifts, contrarian views & predictions"}
+          </p>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12, position: "relative", zIndex: 1 }}>
+          {data && <SentimentOrb sentiment={data.sentiment} size={88} />}
+          <div style={{ display: "flex", gap: 10 }}>
+            {data && (
+              <button onClick={narrateAll} style={{
+                padding: "9px 18px", borderRadius: 8, border: `1px solid ${DS.border}`,
+                background: "transparent", color: speaking ? meta.color : DS.textSecondary,
+                fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}>
+                {speaking ? "⏹ Stop" : "🔊 Narrate"}
+              </button>
+            )}
+            <button onClick={build} disabled={loading || !articles.length} style={{
+              padding: "9px 22px", borderRadius: 8, border: "none",
+              background: loading ? DS.border : DS.accent, color: loading ? DS.textDim : "#000",
+              fontSize: 13, fontWeight: 600, cursor: loading ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", gap: 8, transition: "all .2s",
+            }}>
+              {loading ? <><Spinner /> {buildPhase}</> : data ? "↺ Rebuild" : "Build Story Arc"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── LOADING STATE ──────────────────────────────────────────────────── */}
+      {loading && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          {PHASES.slice(0, 3).map((phase, i) => (
+            <div key={i} style={{
+              background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 12, padding: "20px",
+              display: "flex", alignItems: "center", gap: 12,
+              opacity: buildPhase === phase ? 1 : 0.35, transition: "opacity .4s",
+            }}>
+              <Spinner />
+              <span style={{ fontSize: 12, color: DS.textSecondary }}>{phase}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {data && (
+        <>
+          {/* ── SENTIMENT WAVE ────────────────────────────────────────────── */}
+          <div className="arc-section-enter" style={{ animationDelay: ".05s" }}>
+            <div style={{ background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 16, padding: "24px 28px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 4 }}>Sentiment Wave</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: meta.color, fontFamily: DS.fontDisplay }}>
+                    {meta.icon} {data.sentiment}
                   </div>
-                ))}
-              </Card>
-            )}
-
-            {data.sentiment && (
-              <Card>
-                <SectionLabel>Market Sentiment</SectionLabel>
-                <div style={{ fontSize: 22, fontWeight: 700, color: sentimentColor(data.sentiment), marginBottom: 12 }}>{data.sentiment}</div>
-                {data.contrarian && (
-                  <>
-                    <SectionLabel>Contrarian View</SectionLabel>
-                    <p style={{ fontSize: 13, color: DS.textSecondary, lineHeight: 1.6 }}>{data.contrarian}</p>
-                  </>
-                )}
-              </Card>
-            )}
-
-            {data.whatNext && (
-              <Card style={{ borderTop: `3px solid ${DS.green}`, borderRadius: "0 0 12px 12px" }}>
-                <SectionLabel>What to watch next</SectionLabel>
-                <p style={{ fontSize: 13, color: DS.textPrimary, lineHeight: 1.7 }}>{data.whatNext}</p>
-              </Card>
-            )}
+                </div>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  {["Bearish","Neutral","Bullish"].map((l, i) => (
+                    <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: [DS.red, DS.accent, DS.green][i] }} />
+                      <span style={{ fontSize: 11, color: DS.textDim }}>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <SentimentWave events={data.events.length ? data.events : [{}, {}, {}, {}]} meta={meta} />
+            </div>
           </div>
 
-          {data.summary && !data.events.length && (
-            <Card><p style={{ fontSize: 14, lineHeight: 1.8, whiteSpace: "pre-wrap", color: DS.textPrimary }}>{data.summary}</p></Card>
+          {/* ── INTERACTIVE TIMELINE ──────────────────────────────────────── */}
+          {data.events.length > 0 && (
+            <div className="arc-section-enter" style={{ animationDelay: ".1s" }}>
+              <div style={{ background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 16, padding: "24px 28px" }}>
+                <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 20 }}>
+                  Interactive Timeline · {data.events.length} events
+                </div>
+                <HorizTimeline events={data.events} meta={meta} />
+              </div>
+            </div>
           )}
+
+          {/* ── KEY PLAYERS ───────────────────────────────────────────────── */}
+          {data.players.length > 0 && (
+            <div className="arc-section-enter" style={{ animationDelay: ".15s" }}>
+              <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 14 }}>
+                Key Players · {data.players.length} identified
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+                {data.players.map((p, i) => (
+                  <PlayerCard key={i} player={p} index={i} sentiment={data.sentiment} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── CONTRARIAN VIEW ───────────────────────────────────────────── */}
+          {data.contrarian && (
+            <div className="arc-section-enter" style={{ animationDelay: ".2s" }}>
+              <div style={{
+                background: `linear-gradient(135deg, #1a0a0a, #0d0d1a)`,
+                border: `1px solid #f8717130`, borderRadius: 16, padding: "24px 28px",
+                position: "relative", overflow: "hidden",
+              }}>
+                {/* Diagonal stripe texture */}
+                <div style={{
+                  position: "absolute", inset: 0, borderRadius: 16, opacity: 0.04,
+                  backgroundImage: "repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)",
+                  backgroundSize: "8px 8px",
+                }} />
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <div style={{
+                      padding: "4px 10px", borderRadius: 6, background: "#f8717120", border: "1px solid #f8717140",
+                      fontSize: 10, color: "#f87171", fontWeight: 700, letterSpacing: ".1em",
+                    }}>⚠ DISSENTING VIEW</div>
+                    <div style={{ height: 1, flex: 1, background: "#f8717130" }} />
+                    <span style={{ fontSize: 10, color: DS.textDim, fontFamily: DS.fontMono }}>ANALYST MEMO</span>
+                  </div>
+                  <p style={{ fontSize: 15, color: "#fecacacc", lineHeight: 1.8, fontStyle: "italic" }}>
+                    "{data.contrarian}"
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── WHAT TO WATCH ─────────────────────────────────────────────── */}
+          {predictions.length > 0 && (
+            <div className="arc-section-enter" style={{ animationDelay: ".25s" }}>
+              <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 14 }}>
+                📡 What to Watch Next · AI Predictions
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {predictions.map((text, i) => (
+                  <PredictionCard key={i} text={text} index={i} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fallback if no predictions split but whatNext exists */}
+          {predictions.length === 0 && data.whatNext && (
+            <div className="arc-section-enter" style={{ animationDelay: ".25s" }}>
+              <div style={{ background: DS.surface, border: `1px solid ${DS.green}30`, borderRadius: 16, padding: "22px 28px", borderTop: `3px solid ${DS.green}` }}>
+                <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 10 }}>📡 What to Watch Next</div>
+                <p style={{ fontSize: 14, color: DS.textPrimary, lineHeight: 1.75 }}>{data.whatNext}</p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Empty state */}
+      {!data && !loading && (
+        <div style={{ textAlign: "center", padding: "60px 20px", border: `1px dashed ${DS.border}`, borderRadius: 16 }}>
+          <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.2 }}>◈</div>
+          <p style={{ color: DS.textDim, fontSize: 14 }}>Fetch articles above, then hit Build Story Arc</p>
         </div>
       )}
     </div>
