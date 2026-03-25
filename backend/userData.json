@@ -1,29 +1,15 @@
 {
-  "bookmarks": [
-    {
-      "source": {
-        "id": "the-verge",
-        "name": "The Verge"
-      },
-      "author": "John.Higgins",
-      "title": "Soundcore’s Space 2 are an evolution of its budget headphones",
-      "description": "We finally have an update to the Soundcore Space One that launched two and a half years ago. At MWC 2026, Soundcore has announced the Space 2, which will be available in the US on April 21st in three colors - linen white, jet black, and seafoam green - for $1…",
-      "url": "https://www.theverge.com/tech/886180/soundcore-space-2-announcement-mwc-2026",
-      "urlToImage": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/02/soundcore-space-2-headphones-green-lifestyle-mwc.jpg?quality=90&strip=all&crop=0,0,78.27868852459,100",
-      "publishedAt": "2026-02-28T18:01:40Z",
-      "content": "<ul><li></li><li></li><li></li></ul>\r\nThe Space One have been on best-of lists for years, but maybe its time for the Space 2 to usurp them.\r\nThe Space One have been on best-of lists for years, but ma… [+4435 chars]",
-      "savedAt": "2026-03-25T10:10:02.095Z",
-      "id": "1774433402096"
-    }
-  ],
+  "bookmarks": [],
   "preferences": {
     "topics": {
-      "budget": 6,
-      "Soundcore’s Space 2": 7
+      "budget": 12,
+      "Soundcore’s Space 2": 7,
+      "RBI": 1
     },
     "roles": {
-      "startup_founder": 1
+      "startup_founder": 1,
+      "trader": 1
     },
-    "readCount": 10
+    "readCount": 18
   }
 }

@@ -95,18 +95,7 @@ const Pill = ({ children, active, color = DS.accent, onClick }) => (
 
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   🎤 VOICE SYSTEM — fixed
-   Root bugs that killed listening:
-   1. STALE CLOSURE: onend read finalText from closure captured at mount (always "")
-      Fix → store accumulated text in a ref, never in state during recognition
-   2. continuous:true RESTART LOOP: many browsers fire onend then auto-restart,
-      creating an infinite loop that burns CPU and never delivers results
-      Fix → continuous:false, but we recreate the recognizer for each session
-   3. DUAL MIC CONFLICT: two MicBtns sharing one recognizer → start() on an
-      already-started instance throws, silently killing both
-      Fix → track which "owner" (id) is active; other buttons are disabled
-   4. interimResults with continuous caused partial results to overwrite finals
-      Fix → accumulate finals in ref; interim shown separately
+   🎤 VOICE SYSTEM
 ═══════════════════════════════════════════════════════════════════════════════ */
 const VoiceCtx = createContext(null);
 
@@ -114,14 +103,13 @@ function VoiceProvider({ children }) {
   const [listening,   setListening]   = useState(false);
   const [speaking,    setSpeaking]    = useState(false);
   const [interimText, setInterimText] = useState("");
-  const [activeOwner, setActiveOwner] = useState(null); // which MicBtn owns the mic
+  const [activeOwner, setActiveOwner] = useState(null);
   const [supported,   setSupported]   = useState(false);
 
-  // Use refs for things read inside recognition callbacks (avoids stale closures)
-  const accTextRef  = useRef("");   // accumulated final transcript for current session
-  const onDoneRef   = useRef(null); // callback(text) to fire when done
-  const ownerRef    = useRef(null); // mirrors activeOwner for use inside callbacks
-  const recRef      = useRef(null); // current SpeechRecognition instance
+  const accTextRef  = useRef("");
+  const onDoneRef   = useRef(null);
+  const ownerRef    = useRef(null);
+  const recRef      = useRef(null);
   const audioRef    = useRef(null);
 
   useEffect(() => {
@@ -129,18 +117,16 @@ function VoiceProvider({ children }) {
     setSupported(!!SR);
   }, []);
 
-  // Creates a fresh recognizer each session — avoids stale state issues
   const startListening = useCallback((ownerId, onDone) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR || listening) return;
 
-    // Abort any leftover recognizer
     if (recRef.current) { try { recRef.current.abort(); } catch {} }
 
     const rec = new SR();
     rec.lang           = "en-IN";
-    rec.continuous     = false;   // single utterance — reliable across all browsers
-    rec.interimResults = true;    // still show live feedback
+    rec.continuous     = false;
+    rec.interimResults = true;
     rec.maxAlternatives = 1;
 
     accTextRef.current  = "";
@@ -159,7 +145,7 @@ function VoiceProvider({ children }) {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
-          accTextRef.current += t + " "; // accumulate into ref, not state
+          accTextRef.current += t + " ";
           setInterimText("");
         } else {
           interim += t;
@@ -170,7 +156,6 @@ function VoiceProvider({ children }) {
 
     rec.onerror = (e) => {
       if (e.error === "no-speech") {
-        // no-speech just means silence — fire callback with whatever we got
         const text = accTextRef.current.trim();
         if (text && onDoneRef.current) onDoneRef.current(text);
       } else {
@@ -183,7 +168,6 @@ function VoiceProvider({ children }) {
     };
 
     rec.onend = () => {
-      // Read from ref — never stale
       const text = accTextRef.current.trim();
       if (text && onDoneRef.current) {
         onDoneRef.current(text);
@@ -205,7 +189,6 @@ function VoiceProvider({ children }) {
     }
   }, []);
 
-  // ── TTS ───────────────────────────────────────────────────────────────────
   const speak = useCallback(async (text, voice = "nova") => {
     if (!text?.trim()) return;
     if (audioRef.current) {
@@ -247,14 +230,12 @@ const useVoiceCtx = () => useContext(VoiceCtx);
 
 
 /* ─── MIC BUTTON ─────────────────────────────────────────────────────────────── */
-// id     — unique string so the provider knows which button owns the mic
-// onDone — called with final transcript when user stops speaking
 function MicBtn({ id, onDone, style: s = {} }) {
   const { listening, interimText, activeOwner, supported, startListening, stopListening } = useVoiceCtx();
   if (!supported) return null;
 
   const isMine    = activeOwner === id;
-  const otherBusy = listening && !isMine; // another MicBtn is active
+  const otherBusy = listening && !isMine;
 
   const toggle = () => {
     if (isMine) stopListening();
@@ -279,7 +260,6 @@ function MicBtn({ id, onDone, style: s = {} }) {
       >
         {isMine ? "⏹" : "🎤"}
       </button>
-      {/* Live transcript bubble */}
       {isMine && (
         <div style={{
           position: "absolute", bottom: 48, left: "50%", transform: "translateX(-50%)",
@@ -316,7 +296,7 @@ function SpeakBtn({ text, voice = "nova" }) {
 }
 
 
-/* ─── 🆕 BOOKMARK HOOK ───────────────────────────────────────────────────────── */
+/* ─── BOOKMARK HOOK ──────────────────────────────────────────────────────────── */
 function useBookmarks() {
   const [bookmarks, setBookmarks] = useState([]);
 
@@ -336,10 +316,9 @@ function useBookmarks() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ article }),
       });
-      if (r.status === 409) return; // already saved
+      if (r.status === 409) return;
       const data = await r.json();
       setBookmarks((prev) => [data.bookmark, ...prev]);
-      // Track preference
       if (article.title) {
         const topic = article.title.split(" ").slice(0, 3).join(" ");
         fetch("http://localhost:5000/preferences/track", {
@@ -366,7 +345,7 @@ function useBookmarks() {
 }
 
 
-/* ─── 🆕 BOOKMARK BUTTON ─────────────────────────────────────────────────────── */
+/* ─── BOOKMARK BUTTON ────────────────────────────────────────────────────────── */
 function BookmarkBtn({ article, bookmarks }) {
   const saved = bookmarks.isSaved(article.url);
   return (
@@ -387,7 +366,7 @@ function BookmarkBtn({ article, bookmarks }) {
 }
 
 
-/* ─── 🆕 SMART SUGGESTIONS ───────────────────────────────────────────────────── */
+/* ─── SMART SUGGESTIONS ──────────────────────────────────────────────────────── */
 function SmartSuggestions({ onSelect }) {
   const [suggestions, setSuggestions] = useState([]);
 
@@ -421,7 +400,7 @@ function SmartSuggestions({ onSelect }) {
 }
 
 
-/* ─── 🆕 BOOKMARKS TAB ───────────────────────────────────────────────────────── */
+/* ─── BOOKMARKS TAB ──────────────────────────────────────────────────────────── */
 function BookmarksTab({ bookmarks }) {
   const { speak, speaking, stopSpeaking } = useVoiceCtx();
 
@@ -529,12 +508,10 @@ function NavigatorTab({ articles, bookmarks }) {
       const r = await askAI(txt, articles);
       const ans = r.data.result;
       setAnswer(ans);
-      // ✅ Auto-speak the answer via OpenAI TTS
       speak(ans);
     } finally { setLoadQ(false); }
   };
 
-  // Called by MicBtn when user finishes speaking
   const handleVoiceDone = (text) => {
     setQuestion(text);
     ask(text);
@@ -570,7 +547,6 @@ function NavigatorTab({ articles, bookmarks }) {
             placeholder="Ask anything… or tap 🎤 to speak"
             style={{ flex: 1, borderColor: listening ? DS.accent : undefined }}
           />
-          {/* ✅ Shared MicBtn — onDone fires ask() automatically */}
           <MicBtn id="navigator-ask" onDone={handleVoiceDone} />
           <Btn onClick={() => ask()} disabled={loadQ || !question.trim()}>{loadQ ? <Spinner /> : "Ask"}</Btn>
         </div>
@@ -588,14 +564,12 @@ function NavigatorTab({ articles, bookmarks }) {
         <Card className="fade-in" style={{ borderLeft: `3px solid ${DS.accent}`, borderRadius: "0 12px 12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <SectionLabel>Answer</SectionLabel>
-            {/* 🆕 Speak the answer */}
             <SpeakBtn text={answer} />
           </div>
           <p style={{ fontSize: 14, lineHeight: 1.8, color: DS.textPrimary, whiteSpace: "pre-wrap" }}>{answer}</p>
         </Card>
       )}
 
-      {/* 🆕 Bookmark articles listed below briefing */}
       {articles.length > 0 && (
         <div>
           <SectionLabel>Source Articles</SectionLabel>
@@ -619,16 +593,48 @@ function NavigatorTab({ articles, bookmarks }) {
 
 /* ─── MY ET ──────────────────────────────────────────────────────────────────── */
 const ROLES = [
-  { value: "mutual_fund_investor", label: "Investor" },
-  { value: "startup_founder", label: "Founder" },
-  { value: "student", label: "Student" },
-  { value: "corporate_executive", label: "Executive" },
+  { value: "mutual_fund_investor", label: "Investor",        icon: "📈", desc: "MF, stocks & bonds" },
+  { value: "trader",               label: "Trader",          icon: "⚡", desc: "Intraday & F&O" },
+  { value: "startup_founder",      label: "Founder",         icon: "🚀", desc: "Startups & funding" },
+  { value: "student",              label: "Student",         icon: "🎓", desc: "Learning economics" },
+  { value: "corporate_executive",  label: "Executive",       icon: "🏢", desc: "Strategy & M&A" },
+  { value: "sme_owner",            label: "SME Owner",       icon: "🏪", desc: "GST, loans & ops" },
+  { value: "real_estate",          label: "RE Investor",     icon: "🏠", desc: "Property & REITs" },
+  { value: "nri",                  label: "NRI",             icon: "✈️",  desc: "India investments" },
+  { value: "government_employee",  label: "Govt. Employee",  icon: "🏛️",  desc: "Policy & pension" },
+  { value: "freelancer",           label: "Freelancer",      icon: "💻", desc: "Tax & gig economy" },
+  { value: "farmer",               label: "Farmer",          icon: "🌾", desc: "Agri & commodity" },
+  { value: "homemaker",            label: "Homemaker",       icon: "🏡", desc: "Savings & family" },
 ];
+
 const ROLE_INTERESTS = {
-  mutual_fund_investor: ["Markets", "Mutual Funds", "RBI Policy", "Economy", "Tax"],
-  startup_founder: ["Funding", "Startups", "Tech", "Regulation", "Competitors"],
-  student: ["Economy basics", "Budget", "Jobs", "Policy", "Global markets"],
-  corporate_executive: ["M&A", "Industry trends", "Regulation", "Leadership", "ESG"],
+  mutual_fund_investor: ["SIP returns", "Nifty50", "RBI rate cut", "Debt funds", "Tax saving", "NFO", "ELSS", "Gold ETF"],
+  trader:               ["F&O ban list", "OI data", "Options chain", "Circuit filters", "PCR ratio", "Bulk deals", "SGX Nifty"],
+  startup_founder:      ["Funding rounds", "Term sheets", "SEBI norms", "Unicorns", "ESOPs", "GST", "Angel tax", "DPIIT"],
+  student:              ["GDP basics", "Budget 2025", "Jobs data", "Inflation", "Global markets", "RBI policy", "Trade deficit"],
+  corporate_executive:  ["M&A", "ESG", "Leadership", "Boardroom news", "SEBI norms", "FDI", "IBC", "PLI scheme"],
+  sme_owner:            ["GST input credit", "MSME loan", "SIDBI", "Working capital", "Export incentives", "TReDS", "CGTMSE"],
+  real_estate:          ["REIT dividends", "Housing price index", "Repo rate", "RERA", "PropTech", "NHB", "Affordable housing"],
+  nri:                  ["FEMA rules", "NRE/NRO account", "Remittance", "Double taxation", "India GDP", "LRS limit", "DTAA"],
+  government_employee:  ["8th Pay Commission", "NPS returns", "DA hike", "CPC", "Pension reform", "Gratuity", "EPF"],
+  freelancer:           ["ITR filing", "Section 44ADA", "TDS refund", "Gig economy", "UPI limit", "Advance tax", "GST threshold"],
+  farmer:               ["MSP hike", "Kisan Credit Card", "APMC reform", "Monsoon forecast", "Agri export", "PM-KISAN", "Soil health"],
+  homemaker:            ["Gold price", "School fee hike", "Food inflation", "Health insurance", "FD rates", "PPF", "Sukanya Samriddhi"],
+};
+
+const ROLE_PLACEHOLDERS = {
+  mutual_fund_investor: "e.g. I hold Nifty50 index funds, SIP of ₹10k/month…",
+  trader:               "e.g. I trade Nifty weekly options, positional calls…",
+  startup_founder:      "e.g. Series A SaaS startup in fintech, 20 employees…",
+  student:              "e.g. Final-year economics student, preparing for UPSC…",
+  corporate_executive:  "e.g. CFO at a mid-size manufacturing firm, listed company…",
+  sme_owner:            "e.g. Textile export business, 50 employees, MSME registered…",
+  real_estate:          "e.g. Own 2 residential properties, looking at commercial REITs…",
+  nri:                  "e.g. Based in Dubai, invested in Indian real estate and NRE FDs…",
+  government_employee:  "e.g. IAS officer, 15 years service, invested in NPS and PPF…",
+  freelancer:           "e.g. Freelance developer, invoicing via Razorpay, 44ADA filer…",
+  farmer:               "e.g. Wheat and rice farmer in Punjab, 5 acres, sell at mandi…",
+  homemaker:            "e.g. Managing family savings, two school-going kids, SIP via bank…",
 };
 
 function MyETTab({ articles, bookmarks }) {
@@ -637,12 +643,15 @@ function MyETTab({ articles, bookmarks }) {
   const [context, setContext] = useState("");
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchRole, setSearchRole] = useState("");
+
   const toggle = (i) => setInterests((p) => p.includes(i) ? p.filter((x) => x !== i) : [...p, i]);
   const scoreColor = (s) => s >= 8 ? DS.green : s >= 5 ? DS.accent : DS.textDim;
 
-  // Track role preference
   const handleRoleChange = (r) => {
-    setRole(r); setInterests([]);
+    setRole(r);
+    setInterests([]);
+    setContext("");
     fetch("http://localhost:5000/preferences/track", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ role: r, action: "select" }),
@@ -653,7 +662,11 @@ function MyETTab({ articles, bookmarks }) {
     if (!articles.length) return;
     setLoading(true);
     try {
-      const r = await getPersonalizedFeed(articles, { role, interests: interests.join(", ") || "stocks, startups", context });
+      const r = await getPersonalizedFeed(articles, {
+        role,
+        interests: interests.join(", ") || "general business news",
+        context,
+      });
       const raw = r.data.result;
       setFeed(Array.isArray(raw) ? raw : []);
     } catch (err) {
@@ -662,46 +675,127 @@ function MyETTab({ articles, bookmarks }) {
     } finally { setLoading(false); }
   };
 
+  const filteredRoles = ROLES.filter((r) =>
+    r.label.toLowerCase().includes(searchRole.toLowerCase()) ||
+    r.desc.toLowerCase().includes(searchRole.toLowerCase())
+  );
+
+  const activeRoleMeta = ROLES.find((r) => r.value === role);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <h2 style={{ fontFamily: DS.fontDisplay, fontSize: 24, fontWeight: 700 }}>My ET — Your Newsroom</h2>
+
       <Card>
         <SectionLabel>I am a…</SectionLabel>
+
+        {/* Role search */}
+        <input
+          value={searchRole}
+          onChange={(e) => setSearchRole(e.target.value)}
+          placeholder="Search role… e.g. trader, farmer, NRI"
+          style={{ marginBottom: 14 }}
+        />
+
+        {/* Role grid — 12 roles, icon cards */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+          gap: 8,
+          marginBottom: 20,
+        }}>
+          {filteredRoles.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => handleRoleChange(r.value)}
+              style={{
+                padding: "12px 10px",
+                borderRadius: 10,
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "all .15s",
+                border: "none",
+                background: role === r.value ? DS.accent + "20" : DS.surfaceHover,
+                outline: role === r.value
+                  ? `2px solid ${DS.accent}`
+                  : `1px solid ${DS.border}`,
+              }}
+            >
+              <div style={{ fontSize: 20, marginBottom: 6 }}>{r.icon}</div>
+              <div style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: role === r.value ? DS.accent : DS.textPrimary,
+              }}>
+                {r.label}
+              </div>
+              <div style={{ fontSize: 11, color: DS.textSecondary, marginTop: 2, lineHeight: 1.4 }}>
+                {r.desc}
+              </div>
+            </button>
+          ))}
+          {filteredRoles.length === 0 && (
+            <p style={{
+              fontSize: 13, color: DS.textDim,
+              gridColumn: "1 / -1", padding: "8px 0",
+            }}>
+              No matching role — your profile will still be used as-is.
+            </p>
+          )}
+        </div>
+
+        <SectionLabel>
+          I care about
+          {activeRoleMeta && (
+            <span style={{ color: DS.accent, marginLeft: 6 }}>
+              · {activeRoleMeta.icon} {activeRoleMeta.label}
+            </span>
+          )}
+        </SectionLabel>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          {ROLES.map((r) => (
-            <button key={r.value} onClick={() => handleRoleChange(r.value)} style={{
-              padding: "8px 18px", borderRadius: 20, fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "all .15s",
-              background: role === r.value ? DS.accent : "transparent",
-              color: role === r.value ? "#000" : DS.textSecondary,
-              border: `1px solid ${role === r.value ? DS.accent : DS.border}`,
-            }}>{r.label}</button>
+          {(ROLE_INTERESTS[role] || []).map((i) => (
+            <Pill key={i} active={interests.includes(i)} onClick={() => toggle(i)}>{i}</Pill>
           ))}
         </div>
-        <SectionLabel>I care about</SectionLabel>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-          {(ROLE_INTERESTS[role] || []).map((i) => <Pill key={i} active={interests.includes(i)} onClick={() => toggle(i)}>{i}</Pill>)}
-        </div>
-        <input value={context} onChange={(e) => setContext(e.target.value)} placeholder="Any context? e.g. I hold Nifty50 index funds…" style={{ marginBottom: 14 }} />
-        <Btn onClick={generate} disabled={loading || !articles.length}>{loading ? <><Spinner /> Ranking…</> : "Build my feed"}</Btn>
+
+        <input
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          placeholder={ROLE_PLACEHOLDERS[role] || "Any context about your situation…"}
+          style={{ marginBottom: 14 }}
+        />
+        <Btn onClick={generate} disabled={loading || !articles.length}>
+          {loading ? <><Spinner /> Ranking…</> : "Build my feed"}
+        </Btn>
       </Card>
 
       {feed.length > 0 && (
         <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <SectionLabel>Ranked for — {ROLES.find((r) => r.value === role)?.label}</SectionLabel>
+          <SectionLabel>
+            Ranked for — {activeRoleMeta?.icon} {activeRoleMeta?.label}
+          </SectionLabel>
           {feed.map((a, i) => {
             const score = typeof a.relevanceScore === "number" ? a.relevanceScore
               : typeof a.score === "number" ? a.score : 0;
             return (
               <Card key={i} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                <div style={{ minWidth: 38, height: 38, borderRadius: 8, background: scoreColor(score) + "18", border: `1px solid ${scoreColor(score)}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: scoreColor(score), fontFamily: DS.fontMono }}>
+                <div style={{
+                  minWidth: 38, height: 38, borderRadius: 8,
+                  background: scoreColor(score) + "18",
+                  border: `1px solid ${scoreColor(score)}30`,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 14, fontWeight: 700, color: scoreColor(score), fontFamily: DS.fontMono,
+                }}>
                   {score}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <a href={a.url} target="_blank" rel="noreferrer" style={{ fontSize: 15, fontWeight: 500, color: DS.textPrimary, lineHeight: 1.4, display: "block", marginBottom: 5 }}>{a.title}</a>
+                  <a href={a.url} target="_blank" rel="noreferrer"
+                    style={{ fontSize: 15, fontWeight: 500, color: DS.textPrimary, lineHeight: 1.4, display: "block", marginBottom: 5 }}>
+                    {a.title}
+                  </a>
                   {a.reason && <p style={{ fontSize: 12, color: DS.accent, marginBottom: 4 }}>↳ {a.reason}</p>}
                   {a.description && <p style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.5 }}>{a.description}</p>}
                 </div>
-                {/* 🆕 Bookmark button on each ranked article */}
                 <BookmarkBtn article={a} bookmarks={bookmarks} />
               </Card>
             );
@@ -713,18 +807,7 @@ function MyETTab({ articles, bookmarks }) {
 }
 
 
-/* ─── STORY ARC — CINEMATIC NARRATIVE ENGINE ─────────────────────────────────
-   Sections:
-   1. Animated hero header with live sentiment orb
-   2. Horizontal scrubbing timeline with staggered event reveals
-   3. Player constellation — avatar cards with role badges + impact rings
-   4. Sentiment shift chart — SVG wave drawn on mount
-   5. Contrarian view — styled as a "dissenting analyst memo"
-   6. What to Watch — prediction cards with confidence bars
-   7. Narrate button → OpenAI TTS reads the whole arc
-──────────────────────────────────────────────────────────────────────────────── */
-
-/* Inject keyframes once */
+/* ─── STORY ARC ──────────────────────────────────────────────────────────────── */
 if (!document.getElementById("arc-style")) {
   const s = document.createElement("style");
   s.id = "arc-style";
@@ -747,7 +830,6 @@ if (!document.getElementById("arc-style")) {
   document.head.appendChild(s);
 }
 
-/* Sentiment → color/label helpers */
 const sentimentMeta = (s = "") => {
   const l = s.toLowerCase();
   if (l.includes("bullish") || l.includes("positive") || l.includes("optimistic"))
@@ -759,12 +841,10 @@ const sentimentMeta = (s = "") => {
   return { color: DS.accent, glow: DS.accent + "40", label: s || "Neutral", icon: "●", bg: "#1e1a0e" };
 };
 
-/* Animated sentiment orb */
 function SentimentOrb({ sentiment, size = 96 }) {
   const meta = sentimentMeta(sentiment);
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      {/* Pulse rings */}
       {[0, 1].map(i => (
         <div key={i} style={{
           position: "absolute", inset: 0, borderRadius: "50%",
@@ -773,7 +853,6 @@ function SentimentOrb({ sentiment, size = 96 }) {
           "--glow": meta.glow,
         }} />
       ))}
-      {/* Core orb */}
       <div style={{
         position: "absolute", inset: 8, borderRadius: "50%",
         background: `radial-gradient(circle at 35% 35%, ${meta.color}cc, ${meta.color}44)`,
@@ -791,7 +870,6 @@ function SentimentOrb({ sentiment, size = 96 }) {
   );
 }
 
-/* SVG Sentiment wave */
 function SentimentWave({ events, meta }) {
   const W = 700, H = 90;
   const pts = events.map((_, i) => {
@@ -812,12 +890,10 @@ function SentimentWave({ events, meta }) {
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, overflow: "visible" }}>
-      {/* Grid lines */}
       {[H * 0.25, H * 0.5, H * 0.75].map((y, i) => (
         <line key={i} x1={40} y1={y} x2={W - 40} y2={y}
           stroke={DS.border} strokeWidth="1" strokeDasharray="4 4" />
       ))}
-      {/* Glow fill under curve */}
       <defs>
         <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={meta.color} stopOpacity="0.3" />
@@ -825,18 +901,15 @@ function SentimentWave({ events, meta }) {
         </linearGradient>
       </defs>
       <path d={pathD + ` L${W - 40},${H} L40,${H} Z`} fill="url(#waveGrad)" />
-      {/* Main line */}
       <path d={pathD} fill="none" stroke={meta.color} strokeWidth="2.5"
         className="arc-timeline-line"
         style={{ filter: `drop-shadow(0 0 6px ${meta.color})` }} />
-      {/* Event dots */}
       {pts.map((p, i) => (
         <g key={i}>
           <circle cx={p.x} cy={p.y} r={5} fill={meta.color} stroke={DS.bg} strokeWidth="2"
             style={{ animation: `arcPop .4s ${i * 0.08}s both` }} />
         </g>
       ))}
-      {/* Scan line animation */}
       <rect x={40} y={0} width={80} height={H} fill={`url(#scanGrad)`} style={{ animation: "arcScan 3s ease-in-out 1.8s both" }} />
       <defs>
         <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
@@ -849,7 +922,6 @@ function SentimentWave({ events, meta }) {
   );
 }
 
-/* Player avatar card */
 function PlayerCard({ player, index, sentiment }) {
   const meta = sentimentMeta(sentiment);
   const name = typeof player === "string" ? player : player?.name || "?";
@@ -872,14 +944,12 @@ function PlayerCard({ player, index, sentiment }) {
       onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = color + "60"; }}
       onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = DS.border; }}
     >
-      {/* Impact ring glow behind avatar */}
       <div style={{
         position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)",
         width: 64, height: 64, borderRadius: "50%",
         background: `radial-gradient(circle, ${color}30 0%, transparent 70%)`,
         animation: `arcGlow 3s ease-in-out ${index * 0.5}s infinite`, "--glow": color + "40",
       }} />
-      {/* Avatar */}
       <div style={{
         width: 52, height: 52, borderRadius: "50%", margin: "0 auto 12px",
         background: `linear-gradient(135deg, ${color}44, ${color}22)`,
@@ -895,7 +965,6 @@ function PlayerCard({ player, index, sentiment }) {
   );
 }
 
-/* Animated prediction card */
 function PredictionCard({ text, index }) {
   const confidence = [88, 74, 61, 82, 55][index % 5];
   const colors = [DS.green, DS.accent, DS.blue, "#a78bfa", DS.red];
@@ -906,7 +975,6 @@ function PredictionCard({ text, index }) {
       background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 12,
       padding: "16px 18px", position: "relative", overflow: "hidden",
     }}>
-      {/* Left accent bar */}
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: col, borderRadius: "12px 0 0 12px" }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <p style={{ fontSize: 13, color: DS.textPrimary, lineHeight: 1.65, flex: 1 }}>{text}</p>
@@ -915,7 +983,6 @@ function PredictionCard({ text, index }) {
           <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".06em" }}>CONFIDENCE</div>
         </div>
       </div>
-      {/* Confidence bar */}
       <div style={{ marginTop: 10, height: 3, background: DS.border, borderRadius: 2, overflow: "hidden" }}>
         <div style={{
           height: "100%", background: col, borderRadius: 2,
@@ -927,7 +994,6 @@ function PredictionCard({ text, index }) {
   );
 }
 
-/* Horizontal interactive timeline */
 function HorizTimeline({ events, meta }) {
   const [active, setActive] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -946,12 +1012,10 @@ function HorizTimeline({ events, meta }) {
 
   return (
     <div>
-      {/* Scrollable dot track */}
       <div style={{ overflowX: "auto", paddingBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 0, minWidth: Math.max(events.length * 96, 400), padding: "16px 24px" }}>
           {events.map((ev, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", flex: 1 }}>
-              {/* Connector line */}
               {i > 0 && (
                 <div style={{
                   flex: 1, height: 2,
@@ -960,7 +1024,6 @@ function HorizTimeline({ events, meta }) {
                   boxShadow: i <= revealed ? `0 0 6px ${meta.color}80` : "none",
                 }} />
               )}
-              {/* Node */}
               <button onClick={() => setActive(i)} style={{
                 width: 36, height: 36, borderRadius: "50%", border: "none", flexShrink: 0,
                 background: active === i ? meta.color : i <= revealed ? meta.color + "30" : DS.border,
@@ -977,7 +1040,6 @@ function HorizTimeline({ events, meta }) {
         </div>
       </div>
 
-      {/* Active event detail */}
       {events[active] && (
         <div key={active} className="arc-event-enter" style={{
           background: meta.bg, border: `1px solid ${meta.color}30`,
@@ -990,7 +1052,6 @@ function HorizTimeline({ events, meta }) {
             </div>
           )}
           <p style={{ fontSize: 15, color: DS.textPrimary, lineHeight: 1.75 }}>{evText(events[active])}</p>
-          {/* Prev/Next nav */}
           <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
             <button onClick={() => setActive(a => Math.max(0, a - 1))} disabled={active === 0}
               style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${DS.border}`, background: "transparent", color: DS.textSecondary, fontSize: 12, cursor: active === 0 ? "not-allowed" : "pointer", opacity: active === 0 ? 0.3 : 1 }}>← Prev</button>
@@ -1006,11 +1067,10 @@ function HorizTimeline({ events, meta }) {
   );
 }
 
-/* ── MAIN StoryArcTab ──────────────────────────────────────────────────────── */
 function StoryArcTab({ articles }) {
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(false);
-  const [buildPhase, setBuildPhase] = useState(""); // loading phase label
+  const [buildPhase, setBuildPhase] = useState("");
   const { speak, speaking, stopSpeaking } = useVoiceCtx();
 
   const PHASES = [
@@ -1065,22 +1125,18 @@ function StoryArcTab({ articles }) {
 
   const meta = sentimentMeta(data?.sentiment || "");
 
-  /* Split whatNext into individual predictions */
   const predictions = data?.whatNext
     ? data.whatNext.split(/\.\s+|\n+/).map(s => s.trim()).filter(s => s.length > 20).slice(0, 4)
     : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-
-      {/* ── HERO HEADER ────────────────────────────────────────────────────── */}
       <div style={{
         background: `linear-gradient(135deg, ${DS.surface} 0%, #0d0d18 100%)`,
         border: `1px solid ${DS.border}`, borderRadius: 20, padding: "28px 32px",
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24,
         position: "relative", overflow: "hidden",
       }}>
-        {/* Ambient background glow */}
         <div style={{
           position: "absolute", right: -40, top: -40, width: 300, height: 300,
           borderRadius: "50%", background: data ? `radial-gradient(circle, ${meta.color}12 0%, transparent 70%)` : "transparent",
@@ -1125,7 +1181,6 @@ function StoryArcTab({ articles }) {
         </div>
       </div>
 
-      {/* ── LOADING STATE ──────────────────────────────────────────────────── */}
       {loading && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {PHASES.slice(0, 3).map((phase, i) => (
@@ -1143,7 +1198,6 @@ function StoryArcTab({ articles }) {
 
       {data && (
         <>
-          {/* ── SENTIMENT WAVE ────────────────────────────────────────────── */}
           <div className="arc-section-enter" style={{ animationDelay: ".05s" }}>
             <div style={{ background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 16, padding: "24px 28px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -1166,7 +1220,6 @@ function StoryArcTab({ articles }) {
             </div>
           </div>
 
-          {/* ── INTERACTIVE TIMELINE ──────────────────────────────────────── */}
           {data.events.length > 0 && (
             <div className="arc-section-enter" style={{ animationDelay: ".1s" }}>
               <div style={{ background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 16, padding: "24px 28px" }}>
@@ -1178,7 +1231,6 @@ function StoryArcTab({ articles }) {
             </div>
           )}
 
-          {/* ── KEY PLAYERS ───────────────────────────────────────────────── */}
           {data.players.length > 0 && (
             <div className="arc-section-enter" style={{ animationDelay: ".15s" }}>
               <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 14 }}>
@@ -1192,7 +1244,6 @@ function StoryArcTab({ articles }) {
             </div>
           )}
 
-          {/* ── CONTRARIAN VIEW ───────────────────────────────────────────── */}
           {data.contrarian && (
             <div className="arc-section-enter" style={{ animationDelay: ".2s" }}>
               <div style={{
@@ -1200,7 +1251,6 @@ function StoryArcTab({ articles }) {
                 border: `1px solid #f8717130`, borderRadius: 16, padding: "24px 28px",
                 position: "relative", overflow: "hidden",
               }}>
-                {/* Diagonal stripe texture */}
                 <div style={{
                   position: "absolute", inset: 0, borderRadius: 16, opacity: 0.04,
                   backgroundImage: "repeating-linear-gradient(45deg, #fff 0, #fff 1px, transparent 0, transparent 50%)",
@@ -1223,7 +1273,6 @@ function StoryArcTab({ articles }) {
             </div>
           )}
 
-          {/* ── WHAT TO WATCH ─────────────────────────────────────────────── */}
           {predictions.length > 0 && (
             <div className="arc-section-enter" style={{ animationDelay: ".25s" }}>
               <div style={{ fontSize: 10, color: DS.textDim, letterSpacing: ".12em", textTransform: "uppercase", fontWeight: 500, marginBottom: 14 }}>
@@ -1237,7 +1286,6 @@ function StoryArcTab({ articles }) {
             </div>
           )}
 
-          {/* Fallback if no predictions split but whatNext exists */}
           {predictions.length === 0 && data.whatNext && (
             <div className="arc-section-enter" style={{ animationDelay: ".25s" }}>
               <div style={{ background: DS.surface, border: `1px solid ${DS.green}30`, borderRadius: 16, padding: "22px 28px", borderTop: `3px solid ${DS.green}` }}>
@@ -1249,7 +1297,6 @@ function StoryArcTab({ articles }) {
         </>
       )}
 
-      {/* Empty state */}
       {!data && !loading && (
         <div style={{ textAlign: "center", padding: "60px 20px", border: `1px dashed ${DS.border}`, borderRadius: 16 }}>
           <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.2 }}>◈</div>
@@ -1283,7 +1330,6 @@ function VideoTab({ articles }) {
   const play = () => {
     if (!script) return;
     setPlaying(true); setCurrentLine(0); setProgress(0);
-    // 🆕 If AI voice selected, use OpenAI TTS for the full script
     if (aiVoice) {
       speak(script.join(". "), "nova");
     }
@@ -1336,7 +1382,6 @@ function VideoTab({ articles }) {
               <button onClick={playing ? stop : play} style={{ background: playing ? DS.border : DS.red, color: "#fff", border: "none", borderRadius: 6, padding: "7px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 {playing ? "⏹ Stop" : "▷  Play"}
               </button>
-              {/* 🆕 AI Voice toggle */}
               <button
                 onClick={() => setAiVoice((v) => !v)}
                 style={{
@@ -1374,10 +1419,18 @@ function VideoTab({ articles }) {
 
 /* ─── VERNACULAR ─────────────────────────────────────────────────────────────── */
 const LANGS = [
-  { code: "hi", script: "हिन्दी", name: "Hindi" },
-  { code: "ta", script: "தமிழ்", name: "Tamil" },
-  { code: "te", script: "తెలుగు", name: "Telugu" },
-  { code: "bn", script: "বাংলা", name: "Bengali" },
+  { code: "hi", script: "हिन्दी",   name: "Hindi" },
+  { code: "ta", script: "தமிழ்",   name: "Tamil" },
+  { code: "te", script: "తెలుగు",  name: "Telugu" },
+  { code: "bn", script: "বাংলা",   name: "Bengali" },
+  { code: "mr", script: "मराठी",   name: "Marathi" },
+  { code: "gu", script: "ગુજ.",    name: "Gujarati" },
+  { code: "kn", script: "ಕನ್ನಡ",  name: "Kannada" },
+  { code: "ml", script: "മലയ.",   name: "Malayalam" },
+  { code: "pa", script: "ਪੰਜਾਬੀ", name: "Punjabi" },
+  { code: "ur", script: "اردو",    name: "Urdu" },
+  { code: "or", script: "ଓଡ଼ିଆ",   name: "Odia" },
+  { code: "as", script: "অসমীয়া", name: "Assamese" },
 ];
 
 function VernacularTab({ articles }) {
@@ -1385,6 +1438,11 @@ function VernacularTab({ articles }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  const filteredLangs = LANGS.filter((l) =>
+    l.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const translate = async () => {
     if (!articles.length) return;
@@ -1416,26 +1474,63 @@ function VernacularTab({ articles }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
         <h2 style={{ fontFamily: DS.fontDisplay, fontSize: 24, fontWeight: 700 }}>Vernacular Business News</h2>
-        <p style={{ color: DS.textSecondary, fontSize: 13, marginTop: 4 }}>Culturally adapted — not literal translation</p>
+        <p style={{ color: DS.textSecondary, fontSize: 13, marginTop: 4 }}>
+          Culturally adapted in 12 Indian languages — not literal translation
+        </p>
       </div>
 
       <Card>
-        <SectionLabel>Target language</SectionLabel>
-        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-          {LANGS.map((l) => (
-            <button key={l.code} onClick={() => { setLang(l); setResult(""); setError(""); }} style={{
-              padding: "12px 22px", borderRadius: 10, cursor: "pointer", transition: "all .15s", textAlign: "center",
-              background: lang.code === l.code ? DS.accent : DS.surfaceHover,
-              color: lang.code === l.code ? "#000" : DS.textSecondary,
-              border: `1px solid ${lang.code === l.code ? DS.accent : DS.border}`,
-            }}>
-              <div style={{ fontSize: 20, marginBottom: 3 }}>{l.script}</div>
-              <div style={{ fontSize: 11, opacity: .7 }}>{l.name}</div>
+        <SectionLabel>Choose language</SectionLabel>
+
+        {/* Language search */}
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search language… e.g. Tamil, Gujarati"
+            style={{ paddingLeft: 34 }}
+          />
+          <span style={{
+            position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+            color: DS.textDim, pointerEvents: "none", fontSize: 14,
+          }}>🔍</span>
+        </div>
+
+        {/* Language grid */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+          gap: 8,
+          marginBottom: 20,
+        }}>
+          {filteredLangs.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => { setLang(l); setResult(""); setError(""); }}
+              style={{
+                padding: "10px 8px",
+                borderRadius: 10,
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all .15s",
+                background: lang.code === l.code ? DS.accent : DS.surfaceHover,
+                color: lang.code === l.code ? "#000" : DS.textSecondary,
+                border: `1px solid ${lang.code === l.code ? DS.accent : DS.border}`,
+              }}
+            >
+              <div style={{ fontSize: 18, marginBottom: 3, lineHeight: 1.2 }}>{l.script}</div>
+              <div style={{ fontSize: 11, opacity: 0.75 }}>{l.name}</div>
             </button>
           ))}
+          {filteredLangs.length === 0 && (
+            <p style={{ fontSize: 13, color: DS.textDim, gridColumn: "1 / -1", padding: "8px 0" }}>
+              No language matched — try a different search.
+            </p>
+          )}
         </div>
+
         <Btn onClick={translate} disabled={loading || !articles.length}>
-          {loading ? <><Spinner /> Translating…</> : `Translate to ${lang.name}`}
+          {loading ? <><Spinner /> Translating to {lang.name}…</> : `Translate to ${lang.name}`}
         </Btn>
       </Card>
 
@@ -1449,7 +1544,6 @@ function VernacularTab({ articles }) {
         <Card className="fade-in" style={{ borderLeft: `3px solid ${DS.purple}`, borderRadius: "0 12px 12px 0" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <SectionLabel>{lang.name} Edition</SectionLabel>
-            {/* 🆕 TTS for vernacular — note: TTS voice quality varies by language */}
             <SpeakBtn text={result} voice="nova" />
           </div>
           {result.split(/\n+/).filter(Boolean).map((para, i) => {
@@ -1469,14 +1563,727 @@ function VernacularTab({ articles }) {
 }
 
 
-/* ─── TABS config ────────────────────────────────────────────────────────────── */
+// ═══════════════════════════════════════════════════════════════════════════════
+// PASTE THIS ENTIRE BLOCK into your App.js, just before the TABS config section
+// (i.e. before: "const TABS = [...")
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/* ─── LANDING PAGE STYLES ─────────────────────────────────────────────────── */
+if (!document.getElementById("lp-style")) {
+  const s = document.createElement("style");
+  s.id = "lp-style";
+  s.textContent = `
+    @keyframes lpFadeUp    { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:none} }
+    @keyframes lpReveal    { from{clip-path:inset(0 100% 0 0)} to{clip-path:inset(0 0% 0 0)} }
+    @keyframes lpFloat     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    @keyframes lpOrbit     { from{transform:rotate(0deg) translateX(140px) rotate(0deg)} to{transform:rotate(360deg) translateX(140px) rotate(-360deg)} }
+    @keyframes lpGradShift { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+    @keyframes lpScan      { 0%{transform:translateY(-100%);opacity:0} 10%{opacity:1} 90%{opacity:1} 100%{transform:translateY(800%);opacity:0} }
+    @keyframes lpBlink     { 0%,100%{opacity:1} 50%{opacity:0} }
+    @keyframes lpCountUp   { from{opacity:0;transform:scale(.7)} to{opacity:1;transform:scale(1)} }
+    @keyframes lpTicker    { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+    @keyframes lpGlow      { 0%,100%{box-shadow:0 0 40px 8px rgba(232,160,52,.18)} 50%{box-shadow:0 0 80px 24px rgba(232,160,52,.32)} }
+    @keyframes lpParticle  { 0%{transform:translateY(0) scale(1);opacity:.7} 100%{transform:translateY(-120px) scale(0);opacity:0} }
+
+    .lp-hero-title span { display:inline-block; animation:lpFadeUp .7s cubic-bezier(.22,1,.36,1) both }
+    .lp-card:hover .lp-card-icon { transform:scale(1.18) rotate(-6deg); }
+    .lp-card-icon { transition:transform .35s cubic-bezier(.34,1.56,.64,1); }
+    .lp-cta-btn:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 12px 48px rgba(232,160,52,.45)!important; }
+    .lp-cta-btn { transition:all .2s cubic-bezier(.34,1.56,.64,1)!important; }
+    .lp-stat:hover .lp-stat-num { color:#f0b44a; transform:scale(1.06); }
+    .lp-stat-num { transition:all .2s; }
+    .lp-feature-tag { animation:lpFadeUp .5s cubic-bezier(.22,1,.36,1) both; }
+  `;
+  document.head.appendChild(s);
+}
+
+/* ─── LANDING PAGE FEATURES DATA ─────────────────────────────────────────── */
+const LP_FEATURES = [
+  {
+    icon: "◎",
+    title: "Intelligence Briefing",
+    subtitle: "Navigator",
+    desc: "AI synthesizes dozens of articles into one crisp briefing. Ask follow-ups by typing or speaking.",
+    color: "#e8a034",
+    tag: "Core",
+  },
+  {
+    icon: "✦",
+    title: "Personalised Feed",
+    subtitle: "My ET",
+    desc: "Choose your role — Trader, Founder, Farmer, NRI — and get articles ranked for what matters to you.",
+    color: "#a78bfa",
+    tag: "Smart",
+  },
+  {
+    icon: "◈",
+    title: "Story Arc Tracker",
+    subtitle: "Narrative",
+    desc: "Animated timeline, key-player cards, sentiment waves, contrarian views, and AI predictions — all in one.",
+    color: "#34d399",
+    tag: "Visual",
+  },
+  {
+    icon: "▷",
+    title: "AI Video Studio",
+    subtitle: "Broadcast",
+    desc: "Auto-generates a broadcast-quality 60–120s news script and plays it as a live-style studio segment.",
+    color: "#60a5fa",
+    tag: "Media",
+  },
+  {
+    icon: "◉",
+    title: "Vernacular Edition",
+    subtitle: "12 Languages",
+    desc: "Culturally adapted — not just translated — across Hindi, Tamil, Bengali, Gujarati, and 8 more.",
+    color: "#f472b6",
+    tag: "Local",
+  },
+  {
+    icon: "🎤",
+    title: "Full Voice Control",
+    subtitle: "Hands-free",
+    desc: "Search, ask questions, and listen to briefings entirely by voice. Powered by Web Speech API + OpenAI TTS.",
+    color: "#fb923c",
+    tag: "Voice",
+  },
+];
+
+const LP_STATS = [
+  { num: "12", label: "Indian Languages", icon: "◉" },
+  { num: "6",  label: "AI-powered tabs",  icon: "◎" },
+  { num: "∞",  label: "Topics to explore",icon: "✦" },
+  { num: "0",  label: "Ads. Ever.",        icon: "★" },
+];
+
+const LP_ROLES = ["Investor", "Trader", "Founder", "Student", "Executive", "SME Owner", "NRI", "Farmer", "Homemaker"];
+
+/* ─── HERO PARTICLES ─────────────────────────────────────────────────────── */
+function HeroParticles() {
+  const particles = Array.from({ length: 18 }, (_, i) => ({
+    id: i,
+    x: 5 + Math.random() * 90,
+    y: 10 + Math.random() * 80,
+    delay: Math.random() * 4,
+    dur: 3 + Math.random() * 4,
+    size: 2 + Math.random() * 3,
+  }));
+
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}>
+      {particles.map((p) => (
+        <div
+          key={p.id}
+          style={{
+            position: "absolute",
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: `rgba(232,160,52,${0.15 + Math.random() * 0.3})`,
+            animation: `lpParticle ${p.dur}s ease-in ${p.delay}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ─── SCAN LINE ──────────────────────────────────────────────────────────── */
+function ScanLine() {
+  return (
+    <div style={{
+      position: "absolute", left: 0, right: 0, height: 2, pointerEvents: "none",
+      background: "linear-gradient(90deg, transparent 0%, rgba(232,160,52,.5) 40%, rgba(232,160,52,.8) 50%, rgba(232,160,52,.5) 60%, transparent 100%)",
+      animation: "lpScan 6s ease-in-out 1s infinite",
+      zIndex: 2,
+    }} />
+  );
+}
+
+/* ─── ROLE TICKER ────────────────────────────────────────────────────────── */
+function RoleTicker() {
+  const items = [...LP_ROLES, ...LP_ROLES];
+  return (
+    <div style={{ overflow: "hidden", padding: "6px 0" }}>
+      <div style={{
+        display: "flex", gap: 0,
+        animation: "lpTicker 18s linear infinite",
+        width: "max-content",
+      }}>
+        {items.map((r, i) => (
+          <span key={i} style={{
+            padding: "4px 20px", marginRight: 8, borderRadius: 20,
+            background: "rgba(232,160,52,.08)", border: "1px solid rgba(232,160,52,.18)",
+            fontSize: 12, color: "#e8a034", fontWeight: 500, whiteSpace: "nowrap",
+          }}>
+            {r}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── FEATURE CARD ───────────────────────────────────────────────────────── */
+function FeatureCard({ f, index }) {
+  return (
+    <div
+      className="lp-card"
+      style={{
+        background: "#111118",
+        border: `1px solid #1e1e2a`,
+        borderRadius: 16,
+        padding: "28px 24px",
+        position: "relative",
+        overflow: "hidden",
+        cursor: "default",
+        animation: `lpFadeUp .6s cubic-bezier(.22,1,.36,1) ${0.1 + index * 0.07}s both`,
+        transition: "border-color .2s, transform .2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = f.color + "50";
+        e.currentTarget.style.transform = "translateY(-4px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "#1e1e2a";
+        e.currentTarget.style.transform = "none";
+      }}
+    >
+      {/* glow blob */}
+      <div style={{
+        position: "absolute", top: -40, right: -40, width: 140, height: 140,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${f.color}18 0%, transparent 70%)`,
+        pointerEvents: "none",
+      }} />
+
+      {/* tag */}
+      <div style={{
+        display: "inline-block", padding: "3px 10px", borderRadius: 20, marginBottom: 18,
+        background: f.color + "18", border: `1px solid ${f.color}35`,
+        fontSize: 10, color: f.color, fontWeight: 700, letterSpacing: ".1em",
+      }}>
+        {f.tag}
+      </div>
+
+      {/* icon */}
+      <div className="lp-card-icon" style={{
+        fontSize: 32, marginBottom: 14, color: f.color,
+        textShadow: `0 0 20px ${f.color}80`,
+      }}>
+        {f.icon}
+      </div>
+
+      <div style={{ fontSize: 10, color: "#4a4855", letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 6 }}>
+        {f.subtitle}
+      </div>
+      <h3 style={{
+        fontFamily: "'Playfair Display', Georgia, serif",
+        fontSize: 19, fontWeight: 700, color: "#f0ede8", marginBottom: 10, lineHeight: 1.3,
+      }}>
+        {f.title}
+      </h3>
+      <p style={{ fontSize: 13, color: "#8a8795", lineHeight: 1.7 }}>{f.desc}</p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LANDING PAGE COMPONENT — main export
+═══════════════════════════════════════════════════════════════════════════ */
+function LandingPage({ onEnter }) {
+  const [loaded, setLoaded] = useState(false);
+  const [hoverCta, setHoverCta] = useState(false);
+  const [topArticles, setTopArticles] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("http://localhost:5000/news?q=india")
+      .then((r) => r.json())
+      .then((data) => { if (mounted && Array.isArray(data)) setTopArticles(data); })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoaded(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#0a0a0f",
+      color: "#f0ede8",
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      overflowX: "hidden",
+    }}>
+      {/* ── HERO ── */}
+      <section style={{
+        position: "relative",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "80px 24px 60px",
+        textAlign: "center",
+        overflow: "hidden",
+      }}>
+        {/* Background mesh */}
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: `
+            radial-gradient(ellipse 900px 600px at 50% 0%, rgba(232,160,52,.12) 0%, transparent 70%),
+            radial-gradient(ellipse 600px 400px at 80% 80%, rgba(94,74,186,.08) 0%, transparent 60%),
+            radial-gradient(ellipse 400px 300px at 10% 60%, rgba(52,211,153,.05) 0%, transparent 60%)
+          `,
+        }} />
+
+        {/* Grid lines */}
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none", opacity: .25,
+          backgroundImage: `
+            linear-gradient(rgba(232,160,52,.12) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(232,160,52,.12) 1px, transparent 1px)
+          `,
+          backgroundSize: "72px 72px",
+          maskImage: "radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)",
+        }} />
+
+        <HeroParticles />
+        <ScanLine />
+
+        {/* ET logo badge */}
+        <div style={{
+          animation: "lpFadeUp .6s cubic-bezier(.22,1,.36,1) both",
+          marginBottom: 32,
+          position: "relative", zIndex: 3,
+        }}>
+          <div style={{
+            display: "inline-flex", alignItems: "center", gap: 10,
+            padding: "8px 20px 8px 14px", borderRadius: 40,
+            background: "rgba(232,160,52,.10)",
+            border: "1px solid rgba(232,160,52,.30)",
+            animation: "lpGlow 3s ease-in-out infinite",
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8,
+              background: "linear-gradient(135deg, #e8a034, #f0b44a)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 15, fontWeight: 900, color: "#000",
+              fontFamily: "'Playfair Display', serif",
+            }}>ET</div>
+            <span style={{ fontSize: 12, color: "#e8a034", fontWeight: 600, letterSpacing: ".08em" }}>
+              AI NEWSROOM · POWERED BY CLAUDE
+            </span>
+            <span style={{
+              width: 7, height: 7, borderRadius: "50%", background: "#34d399",
+              animation: "lpBlink 1.2s ease-in-out infinite",
+            }} />
+          </div>
+        </div>
+
+        {/* Main headline */}
+        <h1
+          className="lp-hero-title"
+          style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontSize: "clamp(38px, 7vw, 84px)",
+            fontWeight: 700,
+            lineHeight: 1.08,
+            maxWidth: 820,
+            position: "relative", zIndex: 3,
+            marginBottom: 24,
+          }}
+        >
+          {["The", "Smartest", "Way", "to", "Read", "Business", "News."].map((word, i) => (
+            <span key={i} style={{
+              animationDelay: `${0.15 + i * 0.07}s`,
+              color: ["Smartest", "Business"].includes(word) ? "#e8a034" : "#f0ede8",
+              marginRight: "0.28em",
+            }}>
+              {word}
+            </span>
+          ))}
+        </h1>
+
+        {/* Sub */}
+        <p style={{
+          fontSize: "clamp(14px, 2vw, 18px)",
+          color: "#8a8795",
+          maxWidth: 560,
+          lineHeight: 1.75,
+          marginBottom: 40,
+          position: "relative", zIndex: 3,
+          animation: "lpFadeUp .7s cubic-bezier(.22,1,.36,1) .55s both",
+        }}>
+          AI briefings, story arcs, voice control, vernacular editions, and a
+          personalised feed — all tailored to your role in India's economy.
+        </p>
+
+        {/* CTA buttons */}
+        <div style={{
+          display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center",
+          position: "relative", zIndex: 3,
+          animation: "lpFadeUp .7s cubic-bezier(.22,1,.36,1) .7s both",
+          marginBottom: 56,
+        }}>
+          <button
+            className="lp-cta-btn"
+            onClick={onEnter}
+            style={{
+              padding: "14px 36px", borderRadius: 40, border: "none",
+              background: "linear-gradient(135deg, #e8a034, #f0b44a)",
+              color: "#000", fontSize: 15, fontWeight: 700,
+              letterSpacing: ".02em", cursor: "pointer",
+              boxShadow: "0 8px 32px rgba(232,160,52,.35)",
+              display: "inline-flex", alignItems: "center", gap: 8,
+            }}
+          >
+            Enter the Newsroom <span style={{ fontSize: 18 }}>→</span>
+          </button>
+          <button
+            style={{
+              padding: "14px 28px", borderRadius: 40,
+              border: "1px solid rgba(232,160,52,.30)",
+              background: "transparent",
+              color: "#e8a034", fontSize: 14, fontWeight: 500,
+              cursor: "pointer", transition: "all .2s",
+              letterSpacing: ".02em",
+            }}
+            onClick={() => {
+              document.getElementById("lp-features")?.scrollIntoView({ behavior: "smooth" });
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(232,160,52,.08)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+          >
+            Explore features ↓
+          </button>
+        </div>
+
+        {/* Role ticker */}
+        <div style={{
+          width: "100%", maxWidth: 700,
+          position: "relative", zIndex: 3,
+          animation: "lpFadeUp .7s cubic-bezier(.22,1,.36,1) .85s both",
+        }}>
+          <div style={{ fontSize: 10, color: "#4a4855", letterSpacing: ".12em", marginBottom: 8 }}>
+            BUILT FOR EVERY INDIAN PROFESSIONAL
+          </div>
+          <RoleTicker />
+        </div>
+
+        {/* Scroll hint */}
+        <div style={{
+          position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+          opacity: .45, animation: "lpFloat 2.5s ease-in-out infinite",
+          zIndex: 3,
+        }}>
+          <div style={{ width: 1, height: 40, background: "linear-gradient(to bottom, #e8a034, transparent)" }} />
+          <span style={{ fontSize: 9, color: "#e8a034", letterSpacing: ".14em" }}>SCROLL</span>
+        </div>
+      </section>
+
+      {/* ── TOP STORIES + MODULE SIDEBAR ── */}
+      <section id="lp-daily" style={{ padding: "40px 24px 20px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+              <div>
+                <div style={{ fontSize: 10, color: "#e8a034", letterSpacing: ".18em", fontWeight: 700, marginBottom: 6 }}>LIVE · {topArticles.length} ARTICLES ANALYSED TODAY</div>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, color: "#f0ede8", margin: 0 }}>India's business news, <span style={{ color: "#e8a034" }}>intelligently</span> understood</h2>
+                <p style={{ color: "#8a8795", marginTop: 8, maxWidth: 680 }}>ET AI Newsroom layers generative AI directly onto today's headlines — giving you personalised briefings, story arcs, voice-first Q&A, and vernacular translation. Not a chatbot. A newsroom co-pilot.</p>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={onEnter} className="lp-cta-btn" style={{ padding: "12px 20px", borderRadius: 28, background: "linear-gradient(135deg,#e8a034,#f0b44a)", color: "#000", fontWeight: 700 }}>Open AI Newsroom</button>
+                <button onClick={() => document.getElementById('lp-daily')?.scrollIntoView({ behavior: 'smooth' })} style={{ padding: "12px 18px", borderRadius: 28, border: "1px solid rgba(232,160,52,.2)", background: "transparent", color: "#e8a034" }}>Read today's news ↓</button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              {topArticles.map((a, i) => (
+                <div key={i} style={{ padding: 18, borderRadius: 12, background: "#0d0d14", border: "1px solid #1e1e2a", display: "flex", gap: 14, alignItems: "flex-start" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, color: "#e8a034", marginBottom: 8 }}>{a.source?.name || 'News'}</div>
+                    <a href={a.url} target="_blank" rel="noreferrer" style={{ color: "#f0ede8", fontSize: 18, fontWeight: 700, textDecoration: 'none' }}>{a.title}</a>
+                    <p style={{ color: "#8a8795", marginTop: 8 }}>{a.description}</p>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, color: '#4a4855' }}>{new Date(a.publishedAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <button onClick={() => { /* placeholder for build story arc */ }} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #1e1e2a', background: 'transparent', color: '#e8a034' }}>Build story arc</button>
+                      <button onClick={() => onEnter()} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, background: DS.accent, border: 'none', color: '#000' }}>Open in Newsroom →</button>
+                    </div>
+                  </div>
+                  <div style={{ width: 120, height: 80, borderRadius: 8, background: '#0a0a0f', flexShrink: 0, overflow: 'hidden' }}>
+                    {a.urlToImage ? <img src={a.urlToImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: '#111118' }} />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <aside>
+            <div style={{ position: 'sticky', top: 24 }}>
+              <div style={{ background: '#0d0d14', border: '1px solid #1e1e2a', borderRadius: 12, padding: 18 }}>
+                <div style={{ fontSize: 12, color: '#e8a034', marginBottom: 8 }}>ET AI NEWSROOM</div>
+                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: 18, margin: 0, color: '#f0ede8' }}>Your personal news intelligence layer</h3>
+                <p style={{ color: '#8a8795', marginTop: 8, fontSize: 13 }}>Search any topic. Get briefings, ask follow-ups, translate to your language, and see the full story arc — in seconds.</p>
+                <ul style={{ color: '#8a8795', marginTop: 10, paddingLeft: 16 }}>
+                  <li>Voice-first Q&A on any article</li>
+                  <li>Personalised for 12 reader profiles</li>
+                  <li>12 Indian language translations</li>
+                  <li>AI story arc with timeline & players</li>
+                </ul>
+                <div style={{ marginTop: 12, textAlign: 'center' }}>
+                  <button onClick={onEnter} style={{ padding: '10px 16px', borderRadius: 10, background: 'linear-gradient(135deg,#e8a034,#f0b44a)', border: 'none', color: '#000', fontWeight: 700 }}>Launch AI Newsroom →</button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 14, background: '#0d0d14', border: '1px solid #1e1e2a', borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 12, color: '#e8a034', marginBottom: 8 }}>TRENDING TOPICS</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {topArticles.slice(0,5).map((t,i) => (
+                    <a key={i} href={t.url} target="_blank" rel="noreferrer" style={{ color: '#f0ede8', fontSize: 13, textDecoration: 'none' }}>{t.title}</a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      {/* ── STATS ── */}
+      <section style={{
+        padding: "64px 24px",
+        borderTop: "1px solid #1e1e2a",
+        borderBottom: "1px solid #1e1e2a",
+        background: "#0d0d14",
+      }}>
+        <div style={{
+          maxWidth: 900, margin: "0 auto",
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: 0,
+        }}>
+          {LP_STATS.map((stat, i) => (
+            <div
+              key={i}
+              className="lp-stat"
+              style={{
+                textAlign: "center", padding: "24px 16px",
+                borderRight: i < LP_STATS.length - 1 ? "1px solid #1e1e2a" : "none",
+                animation: `lpCountUp .6s cubic-bezier(.22,1,.36,1) ${i * .1}s both`,
+              }}
+            >
+              <div style={{ fontSize: 11, color: "#e8a034", marginBottom: 8 }}>{stat.icon}</div>
+              <div
+                className="lp-stat-num"
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: 42, fontWeight: 700, color: "#f0ede8",
+                  lineHeight: 1, marginBottom: 6,
+                }}
+              >
+                {stat.num}
+              </div>
+              <div style={{ fontSize: 12, color: "#4a4855", letterSpacing: ".06em" }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section id="lp-features" style={{ padding: "96px 24px" }}>
+        <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+          {/* Section header */}
+          <div style={{ textAlign: "center", marginBottom: 60 }}>
+            <div style={{
+              fontSize: 10, color: "#e8a034", letterSpacing: ".18em",
+              textTransform: "uppercase", fontWeight: 600, marginBottom: 14,
+            }}>
+              SIX REASONS TO SWITCH
+            </div>
+            <h2 style={{
+              fontFamily: "'Playfair Display', serif",
+              fontSize: "clamp(28px, 5vw, 52px)",
+              fontWeight: 700, color: "#f0ede8", lineHeight: 1.15,
+            }}>
+              Everything a busy professional needs,<br />
+              <span style={{ color: "#e8a034" }}>powered by AI.</span>
+            </h2>
+          </div>
+
+          {/* Feature grid */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+            gap: 16,
+          }}>
+            {LP_FEATURES.map((f, i) => (
+              <FeatureCard key={i} f={f} index={i} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section style={{
+        padding: "80px 24px",
+        background: "#0d0d14",
+        borderTop: "1px solid #1e1e2a",
+      }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", textAlign: "center" }}>
+          <div style={{ fontSize: 10, color: "#e8a034", letterSpacing: ".18em", marginBottom: 14, fontWeight: 600 }}>
+            THREE STEPS
+          </div>
+          <h2 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: "clamp(24px, 4vw, 40px)",
+            fontWeight: 700, marginBottom: 56, color: "#f0ede8",
+          }}>
+            From a topic to full intelligence in seconds.
+          </h2>
+
+          <div style={{ display: "flex", gap: 0, position: "relative", flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              { num: "01", title: "Enter a topic", desc: "Type or speak a query — anything from 'RBI rate cut' to 'Adani group'." },
+              { num: "02", title: "Choose your view", desc: "Navigator briefing, Story Arc, My ET feed, Video, or Vernacular edition." },
+              { num: "03", title: "Explore & listen", desc: "Read, save, and listen to AI-synthesised insights, hands-free if you like." },
+            ].map((step, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: "1 1 200px", padding: "32px 24px", textAlign: "center",
+                  borderRight: i < 2 ? "1px solid #1e1e2a" : "none",
+                  animation: `lpFadeUp .6s cubic-bezier(.22,1,.36,1) ${i * .15}s both`,
+                }}
+              >
+                <div style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 11, color: "#e8a034", fontWeight: 700,
+                  letterSpacing: ".14em", marginBottom: 16,
+                }}>
+                  {step.num}
+                </div>
+                <div style={{
+                  width: 48, height: 48, borderRadius: "50%", margin: "0 auto 16px",
+                  background: "rgba(232,160,52,.12)", border: "1px solid rgba(232,160,52,.25)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 20, color: "#e8a034",
+                }}>
+                  {['🔍', '✦', '🔊'][i]}
+                </div>
+                <h3 style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: 18, fontWeight: 700, marginBottom: 10, color: "#f0ede8",
+                }}>
+                  {step.title}
+                </h3>
+                <p style={{ fontSize: 13, color: "#8a8795", lineHeight: 1.7 }}>{step.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section style={{
+        padding: "96px 24px",
+        textAlign: "center",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          background: "radial-gradient(ellipse 700px 500px at 50% 50%, rgba(232,160,52,.09) 0%, transparent 70%)",
+        }} />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10, color: "#4a4855", letterSpacing: ".2em",
+            marginBottom: 20,
+          }}>
+            ◈ ET AI NEWSROOM
+          </div>
+          <h2 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: "clamp(28px, 5vw, 56px)",
+            fontWeight: 700, color: "#f0ede8", lineHeight: 1.15, marginBottom: 16,
+          }}>
+            Your personalised newsroom<br />
+            <span style={{ color: "#e8a034" }}>is ready.</span>
+          </h2>
+          <p style={{ fontSize: 15, color: "#8a8795", marginBottom: 40 }}>
+            No account needed. Just a topic and your curiosity.
+          </p>
+
+          <button
+            className="lp-cta-btn"
+            onClick={onEnter}
+            style={{
+              padding: "16px 48px", borderRadius: 40, border: "none",
+              background: "linear-gradient(135deg, #e8a034, #f0b44a)",
+              color: "#000", fontSize: 16, fontWeight: 700,
+              letterSpacing: ".02em", cursor: "pointer",
+              boxShadow: "0 8px 40px rgba(232,160,52,.4)",
+              display: "inline-flex", alignItems: "center", gap: 10,
+            }}
+          >
+            Enter the Newsroom <span style={{ fontSize: 20 }}>→</span>
+          </button>
+
+          <p style={{ fontSize: 11, color: "#4a4855", marginTop: 20, letterSpacing: ".05em" }}>
+            Powered by NewsAPI · Claude AI · OpenAI TTS
+          </p>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer style={{
+        borderTop: "1px solid #1e1e2a",
+        padding: "24px 32px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 12,
+        background: "#0a0a0f",
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 18, fontWeight: 700, color: "#e8a034",
+          }}>ET</span>
+          <span style={{ fontSize: 10, color: "#4a4855", letterSpacing: ".12em" }}>AI NEWSROOM</span>
+        </div>
+        <p style={{ fontSize: 11, color: "#4a4855" }}>
+          Not affiliated with The Economic Times · For demo purposes only
+        </p>
+        <button
+          onClick={onEnter}
+          style={{
+            background: "transparent", border: "1px solid #1e1e2a",
+            color: "#8a8795", borderRadius: 20, padding: "5px 16px",
+            fontSize: 12, cursor: "pointer",
+          }}
+        >
+          Launch app →
+        </button>
+      </footer>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "navigator",  label: "Navigator",  icon: "◎" },
   { id: "myET",       label: "My ET",      icon: "✦" },
   { id: "storyArc",   label: "Story Arc",  icon: "◈" },
   { id: "video",      label: "AI Video",   icon: "▷" },
   { id: "vernacular", label: "Vernacular", icon: "◉" },
-  { id: "bookmarks",  label: "Saved",      icon: "★" }, // 🆕
+  { id: "bookmarks",  label: "Saved",      icon: "★" },
 ];
 
 
@@ -1484,9 +2291,19 @@ const TABS = [
 export default function App() {
   return (
     <VoiceProvider>
-      <AppInner />
+      <AppRoot />
     </VoiceProvider>
   );
+}
+
+function AppRoot() {
+  const [showLanding, setShowLanding] = useState(true);
+
+  if (showLanding) {
+    return <LandingPage onEnter={() => setShowLanding(false)} />;
+  }
+
+  return <AppInner />;
 }
 
 function AppInner() {
@@ -1497,7 +2314,6 @@ function AppInner() {
   const [error, setError] = useState("");
   const bookmarks = useBookmarks();
 
-  // Ref so the voice callback (created once) always calls the latest handleFetch
   const fetchRef = useRef(null);
 
   const handleFetch = async (overrideQuery) => {
@@ -1516,9 +2332,8 @@ function AppInner() {
     } finally { setFetching(false); }
   };
 
-  fetchRef.current = handleFetch; // always up-to-date
+  fetchRef.current = handleFetch;
 
-  // Stable callback for voice — reads from ref, never stale
   const handleVoiceDone = useCallback((text) => {
     setQuery(text);
     fetchRef.current(text);
@@ -1541,7 +2356,6 @@ function AppInner() {
                 placeholder="Union Budget · Adani · RBI rate cut · or 🎤 speak"
                 style={{ flex: 1 }}
               />
-              {/* ✅ Single MicBtn — fires handleFetch automatically when done */}
               <MicBtn id="header-search" onDone={handleVoiceDone} />
               <Btn onClick={() => handleFetch()} disabled={fetching || !query.trim()}>
                 {fetching ? <Spinner /> : "Fetch"}
@@ -1552,7 +2366,6 @@ function AppInner() {
                 {articles.length} articles loaded
               </span>
             )}
-            {/* 🆕 Bookmark count badge */}
             {bookmarks.bookmarks.length > 0 && (
               <button onClick={() => setTab("bookmarks")} style={{ background: DS.accent + "15", border: `1px solid ${DS.accent}30`, color: DS.accent, borderRadius: 20, padding: "3px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                 ★ {bookmarks.bookmarks.length} saved
@@ -1561,7 +2374,6 @@ function AppInner() {
             {error && <span style={{ fontSize: 12, color: DS.red }}>{error}</span>}
           </div>
 
-          {/* 🆕 Smart suggestions below search bar */}
           <div style={{ padding: "8px 0 6px" }}>
             <SmartSuggestions onSelect={(topic) => { setQuery(topic); }} />
           </div>
@@ -1577,7 +2389,6 @@ function AppInner() {
                 display: "flex", alignItems: "center", gap: 7,
               }}>
                 <span style={{ fontSize: 11 }}>{t.icon}</span>{t.label}
-                {/* 🆕 Badge on Saved tab */}
                 {t.id === "bookmarks" && bookmarks.bookmarks.length > 0 && (
                   <span style={{ background: DS.accent, color: "#000", borderRadius: 10, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>
                     {bookmarks.bookmarks.length}
