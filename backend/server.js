@@ -16,6 +16,10 @@ import { runTTSAgent } from "./agents/ttsAgent.js"; // 🆕 TTS Agent
 
 import { logAgent, getLogs, clearLogs } from "./utils/logger.js";
 
+import connect   from "./db.js";
+import Bookmark  from "./models/bookmark.js";
+import Preference from "./models/Preference.js";
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -42,6 +46,8 @@ function saveUserData(data) {
     console.error("Failed to save user data:", e);
   }
 }
+
+await connect();
 
 const app = express();
 app.use(cors());
