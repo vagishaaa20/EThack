@@ -9,18 +9,22 @@ import {
 
 /* ─── Design system ─────────────────────────────────────────────────────────── */
 const DS = {
-  bg: "#0a0a0f",
-  surface: "#111118",
-  surfaceHover: "#18181f",
-  border: "#1e1e2a",
+  bg: "#07070d",
+  surface: "#0f0f18",
+  surfaceHover: "#16161f",
+  surfaceElevated: "#1a1a26",
+  border: "#22223a",
+  borderBright: "#2e2e4a",
   accent: "#e8a034",
   accentDim: "#e8a03420",
   accentHover: "#f0b44a",
-  textPrimary: "#f0ede8",
-  textSecondary: "#8a8795",
-  textDim: "#4a4855",
+  accentSoft: "#e8a03412",
+  textPrimary: "#f5f2ee",
+  textSecondary: "#b8b4c0",
+  textDim: "#7a7688",
+  textGhost: "#3a3848",
   red: "#e05252",
-  green: "#52c87a",
+  green: "#4ec87a",
   blue: "#5289e0",
   purple: "#9b72e8",
   fontDisplay: "'Playfair Display', Georgia, serif",
@@ -41,39 +45,157 @@ if (!document.getElementById("et-style")) {
   s.id = "et-style";
   s.textContent = `
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{background:${DS.bg};color:${DS.textPrimary};font-family:${DS.fontBody}}
-    ::-webkit-scrollbar{width:4px}
+    body{background:${DS.bg};color:${DS.textPrimary};font-family:${DS.fontBody};font-weight:450;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:5px}
     ::-webkit-scrollbar-track{background:${DS.bg}}
-    ::-webkit-scrollbar-thumb{background:${DS.border};border-radius:2px}
-    a{color:${DS.accent};text-decoration:none}
+    ::-webkit-scrollbar-thumb{background:${DS.border};border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:${DS.borderBright}}
+    a{color:${DS.accent};text-decoration:none;transition:color .15s}
     a:hover{color:${DS.accentHover}}
-    input,textarea{background:${DS.surface};border:1px solid ${DS.border};border-radius:8px;color:${DS.textPrimary};font-family:${DS.fontBody};font-size:14px;padding:10px 14px;outline:none;transition:border-color .2s;width:100%}
-    input:focus,textarea:focus{border-color:${DS.accent}}
-    input::placeholder{color:${DS.textDim}}
+    input,textarea{
+      background:${DS.surface};
+      border:1px solid ${DS.border};
+      border-radius:10px;
+      color:${DS.textPrimary};
+      font-family:${DS.fontBody};
+      font-size:14px;
+      font-weight:450;
+      padding:11px 16px;
+      outline:none;
+      transition:border-color .2s, box-shadow .2s, background .2s;
+      width:100%
+    }
+    input:focus,textarea:focus{
+      border-color:${DS.accent};
+      background:${DS.surfaceElevated};
+      box-shadow:0 0 0 3px ${DS.accent}18
+    }
+    input::placeholder{color:${DS.textGhost}}
     button{cursor:pointer;font-family:${DS.fontBody}}
-    @keyframes fadeSlide{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-    @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
-    @keyframes ripple{0%{box-shadow:0 0 0 0 rgba(232,160,52,.4)}100%{box-shadow:0 0 0 18px rgba(232,160,52,0)}}
-    .fade-in{animation:fadeSlide .3s ease both}
-    .ticker-wrap{overflow:hidden;border-top:1px solid ${DS.border};border-bottom:1px solid ${DS.border}}
-    .ticker-inner{display:flex;animation:ticker 30s linear infinite;white-space:nowrap}
+
+    /* ── Animations ── */
+    @keyframes fadeSlide   {from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    @keyframes fadeIn      {from{opacity:0}to{opacity:1}}
+    @keyframes slideRight  {from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+    @keyframes slideLeft   {from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+    @keyframes scaleIn     {from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+    @keyframes spin        {to{transform:rotate(360deg)}}
+    @keyframes ticker      {0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @keyframes pulse       {0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.7}}
+    @keyframes ripple      {0%{box-shadow:0 0 0 0 rgba(232,160,52,.4)}100%{box-shadow:0 0 0 18px rgba(232,160,52,0)}}
+    @keyframes shimmer     {0%{background-position:-200% center}100%{background-position:200% center}}
+    @keyframes glow        {0%,100%{box-shadow:0 0 12px 2px rgba(232,160,52,.15)}50%{box-shadow:0 0 28px 6px rgba(232,160,52,.30)}}
+    @keyframes borderFlow  {0%{border-color:${DS.border}}50%{border-color:${DS.accent}50}100%{border-color:${DS.border}}}
+    @keyframes countUp     {from{opacity:0;transform:translateY(6px) scale(.96)}to{opacity:1;transform:none}}
+    @keyframes floatUp     {0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+    /* ── Utility classes ── */
+    .fade-in    { animation: fadeSlide .35s cubic-bezier(.22,1,.36,1) both }
+    .scale-in   { animation: scaleIn  .3s  cubic-bezier(.22,1,.36,1) both }
+    .slide-r    { animation: slideRight .35s cubic-bezier(.22,1,.36,1) both }
+
+    .ticker-wrap{overflow:hidden;border-top:1px solid ${DS.border};border-bottom:1px solid ${DS.border};background:${DS.surface}}
+    .ticker-inner{display:flex;animation:ticker 32s linear infinite;white-space:nowrap}
     .ticker-inner:hover{animation-play-state:paused}
     .mic-listening{animation:ripple 1.2s ease-out infinite,pulse 1.2s ease-in-out infinite}
+
+    /* ── Card hover lift ── */
+    .card-hover{transition:transform .2s cubic-bezier(.22,1,.36,1), border-color .2s, box-shadow .2s}
+    .card-hover:hover{transform:translateY(-3px);border-color:${DS.borderBright}!important;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+
+    /* ── Shimmer skeleton ── */
+    .skeleton{
+      background:linear-gradient(90deg,${DS.surface} 25%,${DS.surfaceElevated} 50%,${DS.surface} 75%);
+      background-size:200% 100%;
+      animation:shimmer 1.6s infinite;
+      border-radius:6px;
+    }
+
+    /* ── Glowing accent text ── */
+    .glow-text{
+      background:linear-gradient(135deg,${DS.accent},${DS.accentHover},#ffd580);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      background-clip:text;
+    }
+
+    /* ── Tab indicator ── */
+    .tab-active::after{
+      content:'';display:block;position:absolute;bottom:-1px;left:0;right:0;
+      height:2px;background:linear-gradient(90deg,${DS.accent},${DS.accentHover});
+      border-radius:2px 2px 0 0;box-shadow:0 0 8px ${DS.accent}80;
+    }
+
+    /* ── Noise overlay ── */
+    .noise::after{
+      content:'';position:absolute;inset:0;pointer-events:none;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+      border-radius:inherit;z-index:0;opacity:.5;
+    }
   `;
   document.head.appendChild(s);
 }
 
 /* ─── Primitives ─────────────────────────────────────────────────────────────── */
 const Btn = ({ children, onClick, disabled, variant = "primary", style: s = {} }) => {
-  const base = { padding: "10px 20px", borderRadius: 8, border: "none", fontSize: 13, fontWeight: 500, letterSpacing: ".02em", transition: "all .15s", opacity: disabled ? 0.4 : 1, cursor: disabled ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 6, ...s };
-  const v = { primary: { background: DS.accent, color: "#000" }, ghost: { background: "transparent", color: DS.textSecondary, border: `1px solid ${DS.border}` } };
-  return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...(v[variant] || v.primary) }}>{children}</button>;
+  const base = {
+    padding: "10px 22px", borderRadius: 10, border: "none",
+    fontSize: 13, fontWeight: 600, letterSpacing: ".02em",
+    transition: "all .18s cubic-bezier(.22,1,.36,1)",
+    opacity: disabled ? 0.4 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+    display: "inline-flex", alignItems: "center", gap: 7,
+    position: "relative", overflow: "hidden",
+    ...s
+  };
+  const v = {
+    primary: {
+      background: `linear-gradient(135deg, ${DS.accent}, ${DS.accentHover})`,
+      color: "#000",
+      boxShadow: `0 4px 16px ${DS.accent}35`,
+    },
+    ghost: {
+      background: "transparent",
+      color: DS.textSecondary,
+      border: `1px solid ${DS.border}`,
+    },
+  };
+  const hoverStyle = !disabled ? {
+    onMouseEnter: (e) => {
+      if (variant === "primary") e.currentTarget.style.boxShadow = `0 6px 24px ${DS.accent}55`;
+      else e.currentTarget.style.borderColor = DS.borderBright;
+      e.currentTarget.style.transform = "translateY(-1px)";
+    },
+    onMouseLeave: (e) => {
+      if (variant === "primary") e.currentTarget.style.boxShadow = `0 4px 16px ${DS.accent}35`;
+      else e.currentTarget.style.borderColor = DS.border;
+      e.currentTarget.style.transform = "none";
+    },
+  } : {};
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      style={{ ...base, ...(v[variant] || v.primary) }}
+      {...hoverStyle}
+    >
+      {children}
+    </button>
+  );
 };
 
-const Card = ({ children, style: s = {}, className = "" }) => (
-  <div className={className} style={{ background: DS.surface, border: `1px solid ${DS.border}`, borderRadius: 12, padding: "20px 24px", ...s }}>{children}</div>
+const Card = ({ children, style: s = {}, className = "", hover = false }) => (
+  <div
+    className={`${className} ${hover ? "card-hover" : ""}`}
+    style={{
+      background: DS.surface,
+      border: `1px solid ${DS.border}`,
+      borderRadius: 14,
+      padding: "20px 24px",
+      position: "relative",
+      ...s,
+    }}
+  >
+    {children}
+  </div>
 );
 
 const Spinner = () => (
@@ -81,18 +203,34 @@ const Spinner = () => (
 );
 
 const SectionLabel = ({ children }) => (
-  <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: ".12em", textTransform: "uppercase", color: DS.textDim, marginBottom: 12 }}>{children}</div>
+  <div style={{
+    fontSize: 10, fontWeight: 700, letterSpacing: ".14em",
+    textTransform: "uppercase", color: DS.textDim, marginBottom: 14,
+    display: "flex", alignItems: "center", gap: 8,
+  }}>
+    <span style={{ display: "inline-block", width: 16, height: 1, background: DS.textGhost }} />
+    {children}
+  </div>
 );
 
 const Pill = ({ children, active, color = DS.accent, onClick }) => (
-  <button onClick={onClick} style={{
-    padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500, cursor: "pointer", transition: "all .15s",
-    background: active ? color + "20" : "transparent",
-    color: active ? color : DS.textDim,
-    border: `1px solid ${active ? color + "50" : DS.border}`,
-  }}>{children}</button>
+  <button
+    onClick={onClick}
+    style={{
+      padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 500,
+      cursor: "pointer", transition: "all .18s cubic-bezier(.22,1,.36,1)",
+      background: active ? color + "22" : DS.surfaceHover,
+      color: active ? color : DS.textSecondary,
+      border: `1px solid ${active ? color + "55" : DS.border}`,
+      boxShadow: active ? `0 0 12px ${color}25` : "none",
+      transform: "scale(1)",
+    }}
+    onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.04)"; e.currentTarget.style.borderColor = color + "40"; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.borderColor = active ? color + "55" : DS.border; }}
+  >
+    {children}
+  </button>
 );
-
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    🎤 VOICE SYSTEM
@@ -353,11 +491,19 @@ function BookmarkBtn({ article, bookmarks }) {
       onClick={() => saved ? bookmarks.remove(article.url) : bookmarks.add(article)}
       title={saved ? "Remove bookmark" : "Save article"}
       style={{
-        background: saved ? DS.accent + "20" : "transparent",
-        border: `1px solid ${saved ? DS.accent + "60" : DS.border}`,
-        borderRadius: 6, color: saved ? DS.accent : DS.textDim,
-        fontSize: 12, padding: "4px 10px", cursor: "pointer",
-        display: "inline-flex", alignItems: "center", gap: 4, transition: "all .15s",
+        background: saved ? `linear-gradient(135deg,${DS.accent}25,${DS.accentHover}15)` : "transparent",
+        border: `1px solid ${saved ? DS.accent + "70" : DS.border}`,
+        borderRadius: 8, color: saved ? DS.accent : DS.textDim,
+        fontSize: 12, fontWeight: saved ? 600 : 400,
+        padding: "5px 12px", cursor: "pointer", flexShrink: 0,
+        display: "inline-flex", alignItems: "center", gap: 5,
+        transition: "all .18s cubic-bezier(.22,1,.36,1)",
+        boxShadow: saved ? `0 0 10px ${DS.accent}25` : "none",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = DS.accent + "60"; e.currentTarget.style.color = DS.accent; }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = saved ? DS.accent + "70" : DS.border;
+        e.currentTarget.style.color = saved ? DS.accent : DS.textDim;
       }}
     >
       {saved ? "★ Saved" : "☆ Save"}
@@ -472,11 +618,25 @@ const Ticker = ({ articles }) => {
   if (!articles.length) return null;
   const items = [...articles, ...articles];
   return (
-    <div className="ticker-wrap" style={{ padding: "7px 0" }}>
+    <div className="ticker-wrap" style={{ padding: "8px 0", position: "relative" }}>
+      {/* fade edges */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0, width: 80, zIndex: 1, pointerEvents: "none",
+        background: `linear-gradient(90deg, ${DS.surface}, transparent)`,
+      }} />
+      <div style={{
+        position: "absolute", right: 0, top: 0, bottom: 0, width: 80, zIndex: 1, pointerEvents: "none",
+        background: `linear-gradient(270deg, ${DS.surface}, transparent)`,
+      }} />
       <div className="ticker-inner">
         {items.map((a, i) => (
-          <span key={i} style={{ color: DS.textSecondary, fontSize: 12, marginRight: 48 }}>
-            <span style={{ color: DS.accent, marginRight: 8 }}>◆</span>{a.title}
+          <span key={i} style={{ color: DS.textSecondary, fontSize: 12, fontWeight: 500, marginRight: 0, display: "inline-flex", alignItems: "center" }}>
+            <span style={{
+              color: DS.accent, marginRight: 10, marginLeft: 10, fontSize: 8,
+              background: DS.accent + "20", borderRadius: "50%", width: 20, height: 20,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+            }}>◆</span>
+            {a.title}
           </span>
         ))}
       </div>
@@ -575,14 +735,28 @@ function NavigatorTab({ articles, bookmarks }) {
           <SectionLabel>Source Articles</SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {articles.map((a, i) => (
-              <Card key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
-                <a href={a.url} target="_blank" rel="noreferrer"
-                  style={{ fontSize: 13, color: DS.textPrimary, lineHeight: 1.4, flex: 1, marginRight: 12 }}>
-                  {a.title}
-                </a>
-                <BookmarkBtn article={a} bookmarks={bookmarks} />
-              </Card>
-            ))}
+  <Card
+    key={i}
+    hover
+    className="fade-in"
+    style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      padding: "13px 18px", animationDelay: `${i * 0.04}s`,
+    }}
+  >
+    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, marginRight: 12 }}>
+      <span style={{
+        fontFamily: DS.fontMono, fontSize: 10, color: DS.textGhost, fontWeight: 600,
+        minWidth: 20, textAlign: "right",
+      }}>{String(i + 1).padStart(2, "0")}</span>
+      <a href={a.url} target="_blank" rel="noreferrer"
+        style={{ fontSize: 13, fontWeight: 500, color: DS.textPrimary, lineHeight: 1.45 }}>
+        {a.title}
+      </a>
+    </div>
+    <BookmarkBtn article={a} bookmarks={bookmarks} />
+  </Card>
+))}
           </div>
         </div>
       )}
@@ -790,11 +964,19 @@ function MyETTab({ articles, bookmarks }) {
                 </div>
                 <div style={{ flex: 1 }}>
                   <a href={a.url} target="_blank" rel="noreferrer"
-                    style={{ fontSize: 15, fontWeight: 500, color: DS.textPrimary, lineHeight: 1.4, display: "block", marginBottom: 5 }}>
-                    {a.title}
-                  </a>
-                  {a.reason && <p style={{ fontSize: 12, color: DS.accent, marginBottom: 4 }}>↳ {a.reason}</p>}
-                  {a.description && <p style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.5 }}>{a.description}</p>}
+  style={{ fontSize: 15, fontWeight: 600, color: DS.textPrimary, lineHeight: 1.45, display: "block", marginBottom: 6 }}>
+  {a.title}
+</a>
+{a.reason && (
+  <p style={{
+    fontSize: 12, color: DS.accent, marginBottom: 6, fontWeight: 500,
+    display: "flex", alignItems: "center", gap: 5,
+  }}>
+    <span style={{ fontSize: 10, background: DS.accent + "20", borderRadius: 4, padding: "1px 5px" }}>WHY</span>
+    {a.reason}
+  </p>
+)}
+{a.description && <p style={{ fontSize: 12, color: DS.textSecondary, lineHeight: 1.6, fontWeight: 400 }}>{a.description}</p>}
                 </div>
                 <BookmarkBtn article={a} bookmarks={bookmarks} />
               </Card>
@@ -1877,7 +2059,7 @@ function LandingPage({ onEnter }) {
               fontFamily: "'Playfair Display', serif",
             }}>ET</div>
             <span style={{ fontSize: 12, color: "#e8a034", fontWeight: 600, letterSpacing: ".08em" }}>
-              AI NEWSROOM · POWERED BY CLAUDE
+              AI NEWSROOM 
             </span>
             <span style={{
               width: 7, height: 7, borderRadius: "50%", background: "#34d399",
@@ -2013,8 +2195,18 @@ function LandingPage({ onEnter }) {
                     <p style={{ color: "#8a8795", marginTop: 8 }}>{a.description}</p>
                     <div style={{ display: 'flex', gap: 10, marginTop: 10, alignItems: 'center' }}>
                       <span style={{ fontSize: 11, color: '#4a4855' }}>{new Date(a.publishedAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
-                      <button onClick={() => { /* placeholder for build story arc */ }} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #1e1e2a', background: 'transparent', color: '#e8a034' }}>Build story arc</button>
-                      <button onClick={() => onEnter()} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, background: DS.accent, border: 'none', color: '#000' }}>Open in Newsroom →</button>
+                      <button
+  onClick={() => onEnter({ articles: [a], tab: "storyArc" })}
+  style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, border: '1px solid #1e1e2a', background: 'transparent', color: '#e8a034' }}
+>
+  Build story arc
+</button>
+<button
+  onClick={() => onEnter({ articles: [a], tab: "navigator" })}
+  style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, background: DS.accent, border: 'none', color: '#000' }}
+>
+  Open in Newsroom →
+</button>
                     </div>
                   </div>
                   <div style={{ width: 120, height: 80, borderRadius: 8, background: '#0a0a0f', flexShrink: 0, overflow: 'hidden' }}>
@@ -2298,18 +2490,24 @@ export default function App() {
 
 function AppRoot() {
   const [showLanding, setShowLanding] = useState(true);
+  const [preload, setPreload] = useState(null); // { articles, tab }
+
+  const handleEnter = (opts) => {
+    if (opts) setPreload(opts);
+    setShowLanding(false);
+  };
 
   if (showLanding) {
-    return <LandingPage onEnter={() => setShowLanding(false)} />;
+    return <LandingPage onEnter={handleEnter} />;
   }
 
-  return <AppInner />;
+  return <AppInner preload={preload} />;
 }
 
-function AppInner() {
-  const [tab, setTab] = useState("navigator");
+function AppInner({ preload }) {
+  const [tab, setTab] = useState(preload?.tab || "navigator");
   const [query, setQuery] = useState("");
-  const [articles, setArticles] = useState([]);
+  const [articles, setArticles] = useState(preload?.articles || []);
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState("");
   const bookmarks = useBookmarks();

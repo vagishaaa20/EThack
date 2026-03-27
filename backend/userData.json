@@ -1,15 +1,69 @@
 {
-  "bookmarks": [],
+  "bookmarks": [
+    {
+      "source": {
+        "id": null,
+        "name": "Gizmodo.com"
+      },
+      "author": "Mike Pearl",
+      "title": "You’ll Never Believe This but Elon Musk Doesn’t Get to Pay TSA Workers’ Salaries",
+      "description": "His oh-so generous offer was rejected by the government. He must be so mad!",
+      "url": "https://gizmodo.com/youll-never-believe-this-but-elon-musk-doesnt-get-to-pay-tsa-workers-salaries-2000738309",
+      "urlToImage": "https://gizmodo.com/app/uploads/2025/10/gizmodo-social-1200x675-1.jpg",
+      "publishedAt": "2026-03-26T00:44:36Z",
+      "content": "CBS news reported on Wednesday that Elon Musks pseudo-offer to pay the salaries of TSA workers affected by the ongoing partial government shutdown has been rejected by the Trump Administration.\r\nI sa… [+2555 chars]",
+      "savedAt": "2026-03-27T11:48:59.492Z",
+      "id": "1774612139492"
+    },
+    {
+      "source": {
+        "id": "the-verge",
+        "name": "The Verge"
+      },
+      "author": "Stevie Bonifield",
+      "title": "Apple launches budget-friendly MacBook Neo powered by an iPhone chip",
+      "description": "Apple just announced a new entry-level MacBook that runs on the same A18 Pro chip that launched two years ago in its iPhone 16 lineup and starts at $599. With older M-series MacBooks being phased out, it's a cheaper alternative that competes with Windows and …",
+      "url": "https://www.theverge.com/tech/886496/apple-march-2026-event-macbook-neo-announcement",
+      "urlToImage": "https://platform.theverge.com/wp-content/uploads/sites/2/2026/03/030426_Apple_MacBook_Neo_ADiBenedetto_0005.jpg?quality=90&strip=all&crop=0%2C10.732984293194%2C100%2C78.534031413613&w=1200",
+      "publishedAt": "2026-03-04T14:20:24Z",
+      "content": "<ul><li></li><li></li><li></li></ul>\r\nThe entry-level MacBook could help Apple compete with Chromebooks and low-cost Windows laptops.\r\nThe entry-level MacBook could help Apple compete with Chromebook… [+2539 chars]",
+      "savedAt": "2026-03-25T19:29:37.224Z",
+      "id": "1774466977224"
+    },
+    {
+      "source": {
+        "id": "wired",
+        "name": "Wired"
+      },
+      "author": "Brad Bourque",
+      "title": "Our Favorite Budget TV Is On Sale",
+      "description": "This 55-inch Vizion isn't the fanciest, but you could do a lot worse for under $300.",
+      "url": "https://www.wired.com/story/vizio-tv-deal-226/",
+      "urlToImage": "https://media.wired.com/photos/69a5d56a896b60fea8247136/191:100/w_1280,c_limit/Our%20Favorite%20Budget%20TV%20Is%20$27%20Off.png",
+      "publishedAt": "2026-03-02T18:25:57Z",
+      "content": "Looking for a new television, but don't want to break the bank on fancy QD-OLED technology and features you may not need? This 55-inch screen from Vizio is marked down to $237 at Walmart, a ten perce… [+1770 chars]",
+      "savedAt": "2026-03-25T17:09:32.622Z",
+      "id": "1774458572623"
+    }
+  ],
   "preferences": {
     "topics": {
-      "budget": 12,
-      "Soundcore’s Space 2": 7,
-      "RBI": 1
+      "budget": 18,
+      "Soundcore’s Space 2": 10,
+      "RBI": 1,
+      "Our Favorite Budget": 3,
+      "Apple launches budget-friendly": 9,
+      "budget 2025": 2,
+      "Superb India crush": 3,
+      "India and Canada": 3,
+      "You’ll Never Believe": 3
     },
     "roles": {
       "startup_founder": 1,
-      "trader": 1
+      "trader": 2,
+      "student": 5,
+      "mutual_fund_investor": 1
     },
-    "readCount": 18
+    "readCount": 41
   }
 }

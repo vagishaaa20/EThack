@@ -14,7 +14,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
  */
 export async function runTTSAgent(text, voice = "nova") {
   // Truncate if too long — OpenAI TTS max is 4096 chars
-  const truncated = text.length > 4000 ? text.slice(0, 4000) + "…" : text;
+  const truncated = text.length > 4000 ? text.slice(0, 1200) + "…" : text;
 
   const mp3 = await openai.audio.speech.create({
     model: "tts-1",           // tts-1 = faster/cheaper | tts-1-hd = higher quality
